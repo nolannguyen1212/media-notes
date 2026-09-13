@@ -1,4 +1,0 @@
-interface:
-  display_name: "William Code Style"
-  short_description: "Write clean, concise, easy-to-follow code"
-  default_prompt: "Use $william-code-style to implement this change with my preferred code style."

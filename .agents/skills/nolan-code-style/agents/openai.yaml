@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nolan Code Style"
+  short_description: "Write clean, concise, easy-to-follow code"
+  default_prompt: "Use $nolan-code-style to implement this change with my preferred code style."

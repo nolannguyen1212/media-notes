@@ -64,13 +64,13 @@ task:
 - `testing-strategy` for test planning and implementation.
 - `systematic-debugging` before fixing any bug, failure, or unexpected behavior.
 - `performance-engineering` for evidence-based performance work.
-- `william-code-style` for implementation and review work.
+- `nolan-code-style` for implementation and review work.
 - `verification-before-completion` before any completion or passing claim.
-- `william-git-commit` only when the user asks to commit, prepare a pull
+- `nolan-git-commit` only when the user asks to commit, prepare a pull
   request, or manage commit structure.
 
 When multiple skills apply, combine the language-specific skill with
-`william-code-style`, `testing-strategy` where tests change, and
+`nolan-code-style`, `testing-strategy` where tests change, and
 `verification-before-completion` before handoff.
 
 ## Verification
@@ -102,7 +102,7 @@ change.
 
 ## Git
 
-- Follow `.agents/skills/william-git-commit/SKILL.md` for commits and pull
+- Follow `.agents/skills/nolan-git-commit/SKILL.md` for commits and pull
   requests.
 - Commit messages must be exactly one line, with no body or footer.
 - Never include secrets, generated local state, co-author trailers, or unrelated

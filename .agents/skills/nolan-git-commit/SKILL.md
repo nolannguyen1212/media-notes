@@ -1,7 +1,7 @@
 ---
-name: william-git-commit
+name: nolan-git-commit
 description: >-
-  Prepare and create Git commits using William Nguyen's workflow. Use when the
+  Prepare and create Git commits using Nolan Nguyen's workflow. Use when the
   user asks to commit, craft a commit message, stage changes, update a branch,
   split work into atomic commits, or prepare a pull request. Enforce one-line
   Conventional Commit messages, pull with rebase before each commit, require
@@ -9,7 +9,7 @@ description: >-
   Co-authored-by trailers.
 ---
 
-# William Git Commit
+# Nolan Git Commit
 
 Create focused, reviewable commits without losing or rewriting unrelated user work.
 

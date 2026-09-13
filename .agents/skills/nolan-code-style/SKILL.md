@@ -1,9 +1,9 @@
 ---
-name: william-code-style
-description: Apply William Nguyen's preferred coding style when writing, modifying, refactoring, or reviewing source code. Use for implementation work across languages when code should be clean, concise, explicit, easy to follow, minimally commented, and free of unnecessary abstractions. Combine with project-specific formatters, linters, tests, and repository conventions.
+name: nolan-code-style
+description: Apply Nolan Nguyen's preferred coding style when writing, modifying, refactoring, or reviewing source code. Use for implementation work across languages when code should be clean, concise, explicit, easy to follow, minimally commented, and free of unnecessary abstractions. Combine with project-specific formatters, linters, tests, and repository conventions.
 ---
 
-# William Code Style
+# Nolan Code Style
 
 Optimize first for correctness and readability, then for brevity. Never shorten code at the cost of hiding behavior.
 
