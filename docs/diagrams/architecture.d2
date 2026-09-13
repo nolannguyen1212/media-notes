@@ -1,0 +1,89 @@
+direction: right
+
+classes: {
+  node: {
+    style.font-size: 22
+    width: 200
+    height: 200
+  }
+  store: {
+    style.font-size: 22
+    width: 200
+    height: 200
+  }
+}
+
+developer: Developer {shape: person; class: node}
+ai: "AI Providers" {shape: cloud; class: node}
+
+pipeline: "CI/CD" {
+  direction: right
+  style.stroke-dash: 3
+  style.font-size: 22
+  github: "GitHub\n(source + Actions)" {icon: icons/github.svg; class: node}
+  cd: "GitOps promote\n(Kargo + ArgoCD)" {icon: icons/argo.svg; class: node}
+
+  github -> cd: build, test,\npush image
+}
+
+cluster: "Kubernetes Cluster" {
+  direction: right
+  icon: icons/kubernetes.svg
+  style.font-size: 22
+
+  gateway: Gateway {
+    direction: right
+    style.font-size: 22
+    web: Web {icon: icons/react.svg; class: node}
+    hermes: Hermes {icon: icons/go.svg; class: node}
+    web -> hermes: GraphQL
+  }
+
+  services: Services {
+    grid-columns: 3
+    style.font-size: 22
+
+    core: "Core" {
+      grid-rows: 2
+      identity: Identity {icon: icons/go.svg; class: node}
+      billing: Billing {icon: icons/go.svg; class: node}
+    }
+
+    media_domain: "Media Domain" {
+      grid-rows: 2
+      media: Media {icon: icons/go.svg; class: node}
+      content: Content {icon: icons/go.svg; class: node}
+    }
+
+    workflow: Workflow {
+      grid-rows: 2
+      conductor: Conductor {icon: icons/go.svg; class: node}
+      worker: "Conductor\nWorker" {icon: icons/python.svg; class: node}
+
+      conductor -> worker: Kafka
+    }
+
+    media_domain.media -> workflow.conductor: Kafka
+  }
+
+  data: "Data & Messaging" {
+    direction: down
+    style.font-size: 22
+    redis: Redis {icon: icons/redis.svg; shape: cylinder; class: store}
+    postgres: Postgres {icon: icons/postgresql.svg; shape: cylinder; class: store}
+    kafka: Kafka {icon: icons/apachekafka.svg; shape: queue; class: store}
+    storage: "Object\nStorage" {icon: icons/minio.svg; shape: cylinder; class: store}
+  }
+}
+
+developer -> pipeline.github: push
+pipeline.cd -> cluster: sync
+
+cluster.gateway.hermes -> cluster.services: gRPC
+
+cluster.services -> ai: Whisper / Gemini / TTS
+
+cluster.gateway -> cluster.data.redis: cache
+cluster.services -> cluster.data.postgres: reads / writes
+cluster.services -> cluster.data.kafka: events
+cluster.services -> cluster.data.storage: media I/O
