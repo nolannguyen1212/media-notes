@@ -31,33 +31,19 @@ jobs, carried over Kafka and coordinated by a workflow engine.
 
 ## Architecture
 
-```mermaid
-%%{init: {"themeVariables": {"fontSize": "52px"}, "flowchart": {"curve": "linear", "padding": 36, "nodeSpacing": 90, "rankSpacing": 110, "diagramPadding": 30, "subGraphTitleMargin": {"top": 20, "bottom": 20}}}}%%
-flowchart LR
-    U(["user"]) --> WEB("web")
-    WEB -- "GraphQL" --> HERMES("hermes")
+![Architecture](docs/diagrams/architecture.svg)
 
-    HERMES -- "gRPC" --> IDENTITY("identity")
-    HERMES -- "gRPC" --> BILLING("billing")
-    HERMES -- "gRPC" --> MEDIA("media")
-    HERMES -- "gRPC" --> CONTENT("content")
-
-    MEDIA -- "Kafka: processing.requested" --> CONDUCTOR("conductor")
-    CONDUCTOR -- "Kafka: step commands" --> WORKER("conductor-worker")
-    WORKER -- "Whisper / Gemini / TTS" --> AI[("AI providers")]
-    WORKER -- "gRPC: save result" --> CONTENT_RESULT("content")
-    CONTENT_RESULT -- "Kafka: step.completed" --> CONDUCTOR_JOIN("conductor")
-    CONDUCTOR_JOIN -- "Kafka: status" --> MEDIA_STATUS("media")
-    CONDUCTOR_JOIN -- "Kafka: settle credit" --> BILLING_SETTLE("billing")
-
-    MEDIA -.->|"media bytes"| UPLOAD_STORAGE[("object storage")]
-    WORKER -.->|"read media / write audio"| AUDIO_STORAGE[("object storage")]
-```
-
-Repeated `content`, `conductor`, `media`, and `billing` nodes are the same
-service shown later in the pipeline, kept as separate nodes so every edge
-points left to right instead of looping back across another connection.
-The two `object storage` nodes are the same MinIO/S3 deployment.
+Services are grouped by bounded context rather than by runtime shape:
+**Gateway** (`web`, `hermes`) is the only edge the browser talks to,
+**Identity** and **Billing** are single-service domains, **Media** (`media`,
+`content`) owns everything about an upload and what gets generated from it,
+and **Workflow** (`conductor`, `conductor-worker`) owns orchestration and
+execution. All of it runs in one Kubernetes cluster; Kafka, Postgres,
+Redis, and object storage are shared infrastructure the domains depend on,
+not domains themselves. Completion, status, and credit-settlement
+callbacks that flow back from `conductor` and `content` toward `media` and
+`billing` are omitted here for readability — see
+[docs/architecture.md](docs/architecture.md) for the full event sequence.
 
 ### Request Path
 
@@ -77,16 +63,7 @@ crashed worker resumes from the last completed step.
 
 Each workflow step moves through the same lifecycle:
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Running: command dispatched
-    Running --> Completed: step.completed
-    Running --> Pending: retriable failure, attempt+1 (max 3)
-    Running --> DeadLetter: retries exhausted
-    Completed --> [*]
-    DeadLetter --> [*]: workflow marked failed
-```
+![Step lifecycle](docs/diagrams/step-lifecycle.svg)
 
 A retriable failure is redispatched with an incremented attempt, up to
 `CONDUCTOR_MAX_STEP_ATTEMPTS` (3 by default). Once exhausted, the event
@@ -121,114 +98,17 @@ write and the event announcing it either both commit or neither does.
 | **conductor** | Workflow orchestration. Dependencies, joins, retries, timeouts |
 | **conductor-worker** | Runs Whisper transcription, Gemini enrichment, and TTS as a Kafka consumer-group pool |
 
-## Data Flow
+### Deployment
 
-### Upload Flow
-
-```mermaid
-sequenceDiagram
-    participant W as web
-    participant H as hermes
-    participant M as media
-    participant S as object storage
-
-    W->>H: request upload session
-    H->>M: CreateUploadSession (gRPC)
-    M-->>H: presigned URL
-    H-->>W: presigned URL
-    W->>S: upload file directly
-    W->>H: confirm upload
-    H->>M: ConfirmUpload (gRPC)
-    Note over M: create processing request +<br/>outbox event, same transaction
-```
-
-The file itself never passes through `hermes` or `media`. The browser
-uploads directly to object storage with a presigned URL, and the only
-thing that touches Kafka afterward is the outbox event.
-
-### Processing Flow
-
-```mermaid
-sequenceDiagram
-    participant M as media
-    participant K as Kafka
-    participant C as conductor
-    participant Wk as conductor-worker
-    participant Ct as content
-    participant B as billing
-
-    M->>K: processing.requested (outbox relay)
-    K->>C: consume
-    C->>B: reserve credit (gRPC)
-    C->>K: step.requested (transcribe)
-    K->>Wk: consume
-    Wk->>Ct: save transcript (gRPC)
-    Ct->>K: step.completed
-    K->>C: consume
-    C->>K: processing.completed
-    K->>M: mark completed
-    K->>B: settle credit
-```
-
-This diagram shows one step (transcribe) for readability. After
-transcription, `conductor` publishes only the enrichment steps the user
-selected, and Kafka may hand them to different `conductor-worker`
-replicas in parallel.
-
-## Deployment
-
-This is target infrastructure, not yet wired up in this repo. GitHub
-Actions currently only builds, lints, and tests
-(`.github/workflows/ci.yml`); the steps below are the design it's built
-toward. A single k3s cluster on a VPS runs production. GitHub Actions
-builds and tests every push, then publishes a versioned image to GHCR.
-Kargo watches GHCR for new images, verifies them, and promotes a passing
-one by committing the new image tag into `deploy/` in this repo. ArgoCD
-watches that same path and reconciles the cluster to match it, so a
-deploy is always a commit landing and ArgoCD syncing it, never a manual
-`kubectl apply`.
-
-```mermaid
-%%{init: {"themeVariables": {"fontSize": "52px"}, "flowchart": {"curve": "linear", "padding": 36, "nodeSpacing": 90, "rankSpacing": 110, "diagramPadding": 30, "subGraphTitleMargin": {"top": 20, "bottom": 20}}}}%%
-flowchart LR
-    DEV(["developer"]) -- "push" --> REPO("media-notes repo")
-
-    subgraph GH["GitHub"]
-        REPO
-        ACTIONS("GitHub Actions")
-        GHCR[("ghcr.io")]
-        REPO -- "trigger CI" --> ACTIONS
-        ACTIONS -- "build, test, push image" --> GHCR
-    end
-
-    subgraph CTRL["GitOps control plane"]
-        KARGO("Kargo")
-        ARGOCD("ArgoCD")
-        KARGO -- "verify, promote" --> ARGOCD
-    end
-
-    subgraph K3S["k3s cluster (VPS)"]
-        direction TB
-        WEB_S("web")
-        HERMES_S("hermes")
-        IDENTITY_S("identity")
-        BILLING_S("billing")
-        MEDIA_S("media")
-        CONTENT_S("content")
-        CONDUCTOR_S("conductor")
-        WORKER_S("conductor-worker")
-        WEB_S ~~~ HERMES_S ~~~ IDENTITY_S ~~~ BILLING_S ~~~ MEDIA_S ~~~ CONTENT_S ~~~ CONDUCTOR_S ~~~ WORKER_S
-    end
-
-    GHCR -- "new image tag" --> KARGO
-    ARGOCD -- "sync" --> K3S
-```
-
-Three boundaries, three concerns. **GitHub** builds and publishes an
-image. The **control plane** (Kargo + ArgoCD) decides what's allowed to
-run and reconciles it. **k3s** just runs whatever the control plane last
-synced. The flow only moves left to right, so no connector has to cross
-another.
+The same diagram above doubles as the deployment view: GitHub Actions
+currently only builds, lints, and tests (`.github/workflows/ci.yml`); the
+CI/CD path shown is the design it's built toward, not yet wired up in this
+repo. GitHub Actions builds and tests every push and publishes a versioned
+image to GHCR. Kargo watches GHCR for new images, verifies them, and
+promotes a passing one by committing the new image tag into `deploy/` in
+this repo. ArgoCD watches that same path and reconciles the cluster to
+match it, so a deploy is always a commit landing and ArgoCD syncing it,
+never a manual `kubectl apply`.
 
 With one environment today, Kargo acts as a verified, policy-gated image
 promoter rather than a multi-stage dev, staging, and prod pipeline. It
