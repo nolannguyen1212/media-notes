@@ -21,9 +21,9 @@ pipeline: "CI/CD" {
   style.stroke-dash: 3
   style.font-size: 22
   github: "GitHub\n(source + Actions)" {icon: icons/github.svg; class: node}
-  cd: "GitOps promote\n(Kargo + ArgoCD)" {icon: icons/argo.svg; class: node}
+  cd: "GitOps sync\n(ArgoCD)" {icon: icons/argo.svg; class: node}
 
-  github -> cd: build, test,\npush image
+  github -> cd: build, test, push image,\ncommit tag
 }
 
 cluster: "Kubernetes Cluster" {

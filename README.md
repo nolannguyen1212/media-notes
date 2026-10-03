@@ -103,18 +103,11 @@ write and the event announcing it either both commit or neither does.
 The same diagram above doubles as the deployment view: GitHub Actions
 currently only builds, lints, and tests (`.github/workflows/ci.yml`); the
 CI/CD path shown is the design it's built toward, not yet wired up in this
-repo. GitHub Actions builds and tests every push and publishes a versioned
-image to GHCR. Kargo watches GHCR for new images, verifies them, and
-promotes a passing one by committing the new image tag into `deploy/` in
-this repo. ArgoCD watches that same path and reconciles the cluster to
-match it, so a deploy is always a commit landing and ArgoCD syncing it,
-never a manual `kubectl apply`.
-
-With one environment today, Kargo acts as a verified, policy-gated image
-promoter rather than a multi-stage dev, staging, and prod pipeline. It
-still keeps a reviewable Git commit between a passing image and one
-running in production, instead of ArgoCD auto-syncing on every push to
-GHCR.
+repo. GitHub Actions builds and tests every push, publishes a versioned
+image to GHCR, and on success commits that image tag into `deploy/` in
+this repo. ArgoCD watches that path and reconciles the cluster to match
+it, so a deploy is always a commit landing and ArgoCD syncing it, never a
+manual `kubectl apply`.
 
 ## Getting Started
 
