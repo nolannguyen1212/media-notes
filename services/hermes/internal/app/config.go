@@ -29,6 +29,12 @@ type Config struct {
 	// internal/auth.
 	SessionCookieName string
 
+	// CORSAllowedOrigin is the single origin allowed to call /graphql
+	// cross-origin (web, served from its own domain). Empty disables
+	// CORS header injection entirely — a same-origin deployment (the
+	// local dev proxy) needs no CORS headers at all.
+	CORSAllowedOrigin string
+
 	// GraphQLBodyLimitBytes bounds request body size, per ADR 0004 (1 MiB).
 	GraphQLBodyLimitBytes int64
 
@@ -56,6 +62,7 @@ func LoadConfig() (Config, error) {
 		RedisDB:       0,
 
 		SessionCookieName: getEnv("HERMES_SESSION_COOKIE_NAME", "mn_session"),
+		CORSAllowedOrigin: os.Getenv("HERMES_CORS_ALLOWED_ORIGIN"),
 
 		GraphQLBodyLimitBytes: 1_048_576,
 		DownstreamTimeout:     5 * time.Second,

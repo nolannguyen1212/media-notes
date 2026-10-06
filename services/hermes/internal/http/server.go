@@ -34,6 +34,7 @@ func NewMux(cfg app.Config, resolver *graphqlpkg.Resolver, validator auth.Sessio
 	graphqlHandler = auth.Middleware(validator, cfg.SessionCookieName)(graphqlHandler)
 	graphqlHandler = rateLimitSignalMiddleware(graphqlHandler)
 	graphqlHandler = limits.BodyLimitMiddleware(cfg.GraphQLBodyLimitBytes)(graphqlHandler)
+	graphqlHandler = corsMiddleware(cfg.CORSAllowedOrigin)(graphqlHandler)
 
 	mux.Handle("/graphql", graphqlHandler)
 	mux.Handle("/", playground.Handler("hermes", "/graphql"))

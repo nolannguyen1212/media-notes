@@ -9,6 +9,32 @@ import (
 	"github.com/nolannguyen1212/media-notes/services/hermes/internal/limits"
 )
 
+// corsMiddleware sets the headers needed for a cross-origin browser
+// client (web, on its own domain) to call /graphql directly, and
+// short-circuits OPTIONS preflight requests with a bare 204. No
+// Access-Control-Allow-Credentials: auth is a Bearer token sent via the
+// Authorization header (see internal/auth), never a cookie, so there's
+// no cookie-domain/SameSite problem to solve. A blank allowedOrigin
+// disables header injection entirely (same-origin deployments, e.g. the
+// local dev proxy, need none of this).
+func corsMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if allowedOrigin == "" {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // clientIPMiddleware attaches the caller's IP to the request context, for
 // rate-limit keys on pre-authentication operations that have no user id
 // yet (register, login).
