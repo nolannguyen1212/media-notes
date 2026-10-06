@@ -10,6 +10,8 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
 COPY services/web/ ./
+ARG VITE_HERMES_URL
+ENV VITE_HERMES_URL=${VITE_HERMES_URL}
 RUN pnpm build
 
 FROM nginx:1.27-alpine AS runner
