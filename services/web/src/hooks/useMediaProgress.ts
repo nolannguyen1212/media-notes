@@ -19,6 +19,7 @@ export type MediaProgressEntry = MediaProgressQuery["mediaProgress"][number];
 const BASE_INTERVAL_MS = 3000;
 const MAX_INTERVAL_MS = 30_000;
 const QUERY = print(MediaProgressDocument);
+const HERMES_URL = import.meta.env.VITE_HERMES_URL ?? "";
 
 type PollResult = {
 	data?: MediaProgressQuery;
@@ -31,7 +32,7 @@ async function pollOnce(ids: string[]): Promise<PollResult> {
 	const session = getSession();
 	let res: Response;
 	try {
-		res = await fetch("/graphql", {
+		res = await fetch(`${HERMES_URL}/graphql`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

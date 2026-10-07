@@ -7,11 +7,11 @@ import {
 import { onError } from "@apollo/client/link/error";
 import { clearSession, getSession } from "@/lib/session";
 
-// Relative URI on purpose: the Vite dev proxy (see vite.config.ts) and the
-// production nginx config (see nginx.conf) both forward /graphql to hermes,
-// so the browser never makes a cross-origin request and hermes never needs
-// to grant CORS.
-const httpLink = new HttpLink({ uri: "/graphql" });
+// VITE_HERMES_URL is empty locally (relative /graphql, same-origin) and
+// set at build time for the Kubernetes deployment (cross-origin, direct
+// to hermes's Ingress).
+const hermesUrl = import.meta.env.VITE_HERMES_URL ?? "";
+const httpLink = new HttpLink({ uri: `${hermesUrl}/graphql` });
 
 const authLink = new ApolloLink((operation, forward) => {
 	const session = getSession();
