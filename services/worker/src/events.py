@@ -92,6 +92,10 @@ def parse_audio_job_command(raw: bytes) -> AudioJobCommand:
 
 
 def new_consumer(brokers: list[str]) -> KafkaConsumer:
+    # transcribe blocks the main loop for the whole Whisper decode (can run
+    # well past kafka-python's 5min default), so max_poll_interval_ms must
+    # cover the slowest single step or the group evicts us mid-job and the
+    # eventual commit() raises CommitFailedError.
     return KafkaConsumer(
         STEP_REQUESTED_TOPIC,
         AUDIO_JOB_REQUESTED_TOPIC,
@@ -99,6 +103,7 @@ def new_consumer(brokers: list[str]) -> KafkaConsumer:
         group_id=CONSUMER_GROUP,
         enable_auto_commit=False,
         auto_offset_reset="earliest",
+        max_poll_interval_ms=1_800_000,
     )
 
 
