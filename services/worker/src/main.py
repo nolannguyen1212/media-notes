@@ -11,7 +11,7 @@ import logging
 import signal
 
 from dotenv import load_dotenv
-from groq import Groq
+from google import genai
 
 import dispatch
 import events
@@ -22,7 +22,7 @@ from config import load_config
 from deps import Deps
 from handlers import audio_job
 from limits import build_limits
-from providers import llm, whisper
+from providers import gemini, whisper
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     _running = False
 
 
-def _make_groq_client(api_key: str) -> Groq:
-    return Groq(api_key=api_key)
+def _make_gemini_client(api_key: str) -> genai.Client:
+    return genai.Client(api_key=api_key)
 
 
 def main() -> None:
@@ -53,7 +53,7 @@ def main() -> None:
     logger.info("loading whisper model=%s", cfg.whisper_model)
     whisper.load_model(cfg.whisper_model)
 
-    llm.configure(lambda: _make_groq_client(cfg.groq_api_key), cfg.llm_model)
+    gemini.configure(lambda: _make_gemini_client(cfg.google_api_key), cfg.gemini_model)
 
     media_client = MediaClient(cfg.media_grpc_addr)
     content_client = ContentClient(cfg.content_grpc_addr)
@@ -63,7 +63,7 @@ def main() -> None:
     )
     deps = Deps(
         media=media_client, content=content_client, objects=object_store,
-        limits=build_limits(cfg), llm_model=cfg.llm_model, tts_voice=cfg.tts_voice,
+        limits=build_limits(cfg), gemini_model=cfg.gemini_model, tts_voice=cfg.tts_voice,
     )
 
     consumer = events.new_consumer(cfg.kafka_brokers)

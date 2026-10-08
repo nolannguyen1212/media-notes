@@ -1,11 +1,11 @@
 [project]
 name = "conductor-worker"
 version = "0.1.0"
-description = "Stateless Kafka executor pool: Whisper, Groq LLM, TTS, FFmpeg. See docs/services/worker.md."
+description = "Stateless Kafka executor pool: Whisper, Gemini, TTS, FFmpeg. See docs/services/worker.md."
 requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.0.0",
-    "groq>=0.11.0",
+    "google-genai>=1.0.0",
     "edge-tts>=6.1.9",
     "minio==7.2.15",
     "grpcio>=1.83.0",

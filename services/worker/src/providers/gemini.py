@@ -1,7 +1,7 @@
-"""LLM enrichment via Groq: summary, keywords, keypoints, notes. Adapted
-from apps/worker/src/summarizer.py and extractor.py, reshaped to
-content.proto's structured output (sentence-level citations, segment-ranged
-keypoints) instead of the v1 API's plain-text/ref-index shape.
+"""Gemini enrichment: summary, keywords, keypoints, notes. Adapted from
+apps/worker/src/summarizer.py and extractor.py, reshaped to content.proto's
+structured output (sentence-level citations, segment-ranged keypoints)
+instead of the v1 API's plain-text/ref-index shape.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable
 from typing import Protocol
 
-from groq import Groq
+from google import genai
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -30,11 +30,11 @@ class Segment(Protocol):
 
 MAX_RETRIES = 3
 
-_make_client: Callable[[], Groq] | None = None
-_model_name = "llama-3.3-70b-versatile"
+_make_client: Callable[[], genai.Client] | None = None
+_model_name = "gemini-2.5-flash-lite"
 
 
-def configure(make_client: Callable[[], Groq], model_name: str) -> None:
+def configure(make_client: Callable[[], genai.Client], model_name: str) -> None:
     global _make_client, _model_name
     _make_client = make_client
     _model_name = model_name
@@ -57,13 +57,10 @@ def _custom_instructions_block(custom_instructions: str | None) -> str:
 
 def _call(prompt: str) -> str:
     if _make_client is None:
-        raise RuntimeError("Groq client not configured")
+        raise RuntimeError("Gemini client not configured")
     client = _make_client()
-    response = client.chat.completions.create(
-        model=_model_name,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = (response.choices[0].message.content or "").strip()
+    response = client.models.generate_content(model=_model_name, contents=prompt)
+    raw = (response.text or "").strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -78,8 +75,8 @@ def _call_with_retry(prompt: str, parse: Callable[[str], object]) -> object:
             return parse(_call(prompt))
         except (json.JSONDecodeError, ValidationError, ValueError) as e:
             last_error = e
-            logger.warning("llm call attempt %d failed: %s", attempt, e)
-    raise RuntimeError(f"llm call failed after {MAX_RETRIES} attempts: {last_error}")
+            logger.warning("gemini call attempt %d failed: %s", attempt, e)
+    raise RuntimeError(f"gemini call failed after {MAX_RETRIES} attempts: {last_error}")
 
 
 class _SentenceRef(BaseModel):
@@ -127,8 +124,8 @@ class _Keyword(BaseModel):
 def extract_keywords(
     segments: list[Segment], custom_instructions: str | None = None
 ) -> list[tuple[str, float, int]]:
-    """Returns up to 10 (keyword, score, position) tuples, ranked by the
-    model's own relevance score (content.proto's Keyword shape).
+    """Returns up to 10 (keyword, score, position) tuples, ranked by
+    Gemini's own relevance score (content.proto's Keyword shape).
     """
     prompt = (
         "Extract up to 10 keywords from the following transcript, each "
@@ -185,7 +182,7 @@ def draft_audio_script(description: str) -> str:
     """Drafts narration text from a loose description, for the standalone
     audio feature's "chat with AI" mode (docs/services/worker.md). Plain
     prose in, plain prose out — no transcript, no JSON structure, unlike
-    every other LLM call in this module.
+    every other Gemini call in this module.
     """
     prompt = (
         "You are a scriptwriting assistant. Write a short narration script "

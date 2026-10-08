@@ -2,7 +2,7 @@
 
 ## Scope
 
-Python Kafka consumer-group pool. It is stateless: executes Whisper, Groq,
+Python Kafka consumer-group pool. It is stateless: executes Whisper, Gemini,
 FFmpeg and TTS; it owns only bounded local execution. Durable results belong to
 Media or Content service.
 
@@ -14,7 +14,7 @@ worker/
   dispatch.py        # step-kind routing
   steps/             # transcribe, summary, keywords, keypoints, notes, audio, thumbnail
   clients/           # gRPC and object-storage clients
-  providers/         # Whisper/Groq/TTS adapters
+  providers/         # Whisper/Gemini/TTS adapters
   limits.py          # semaphore, timeout and quota admission
 ```
 
@@ -52,8 +52,8 @@ draft narration text first, then synthesize it — entirely independent of
 any media item, conductor workflow, or media_id.
 
 - `handle_script` drafts narration text from a loose description via
-  `providers.llm.draft_audio_script` — a plain-prose prompt/response,
-  unlike every other LLM call in this module (no transcript, no JSON
+  `providers.gemini.draft_audio_script` — a plain-prose prompt/response,
+  unlike every other Gemini call in this module (no transcript, no JSON
   structure).
 - `handle_audio` synthesizes text directly to speech via the same
   `providers/tts.py` edge-tts adapter `handle_summary_audio` uses, uploads

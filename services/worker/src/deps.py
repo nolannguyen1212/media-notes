@@ -17,5 +17,5 @@ class Deps:
     content: ContentClient
     objects: ObjectStore
     limits: Limits
-    llm_model: str
+    gemini_model: str
     tts_voice: str
