@@ -25,6 +25,9 @@ class Config:
 
     google_api_key: str
     gemini_model: str
+    hf_token: str
+    hf_model: str
+    llm_provider: int
     whisper_model: str
     tts_voice: str
 
@@ -54,6 +57,9 @@ def load_config() -> Config:
         minio_media_bucket=os.environ.get("MINIO_MEDIA_BUCKET", "media"),
         google_api_key=os.environ.get("GOOGLE_API_KEY", ""),
         gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+        hf_token=os.environ.get("HF_TOKEN", ""),
+        hf_model=os.environ.get("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct:novita"),
+        llm_provider=int(os.environ.get("LLM_PROVIDER", "2")),
         whisper_model=os.environ.get("WHISPER_MODEL", "base"),
         tts_voice=os.environ.get("WORKER_TTS_VOICE", "en-US-AriaNeural"),
         max_concurrent_whisper=int(os.environ.get("WORKER_MAX_CONCURRENT_WHISPER", "1")),

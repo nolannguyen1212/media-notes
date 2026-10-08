@@ -6,14 +6,14 @@ from __future__ import annotations
 
 from deps import Deps
 from events import StepCommand
-from providers import gemini
+from providers import llm
 
 
 def handle(cmd: StepCommand, deps: Deps) -> None:
     transcript = deps.content.get_transcript(cmd.media_id)
 
     with deps.limits.for_step(cmd.step).acquire():
-        keywords = gemini.extract_keywords(transcript.segments, cmd.prompt_override)
+        keywords = llm.extract_keywords(transcript.segments, cmd.prompt_override)
 
     deps.content.store_keywords(
         idempotency_key=cmd.idempotency_key,

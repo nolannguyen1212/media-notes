@@ -12,21 +12,24 @@ import signal
 
 from dotenv import load_dotenv
 from google import genai
+from openai import OpenAI
 
 import dispatch
 import events
 from clients.content_client import ContentClient
 from clients.media_client import MediaClient
 from clients.objectstore import ObjectStore
-from config import load_config
+from config import Config, load_config
 from deps import Deps
 from handlers import audio_job
 from limits import build_limits
-from providers import gemini, whisper
+from providers import llm, whisper
 
 logger = logging.getLogger(__name__)
 
 _running = True
+
+_LLM_PROVIDER_NAMES = ["gemini", "huggingface"]
 
 
 def _handle_sigterm(signum: int, frame: object) -> None:
@@ -35,8 +38,43 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     _running = False
 
 
-def _make_gemini_client(api_key: str) -> genai.Client:
-    return genai.Client(api_key=api_key)
+class _GeminiAdapter:
+    def __init__(self, client: genai.Client, model: str) -> None:
+        self._client = client
+        self._model = model
+
+    def generate(self, prompt: str) -> str:
+        response = self._client.models.generate_content(model=self._model, contents=prompt)
+        return response.text or ""
+
+
+class _OpenAICompatAdapter:
+    def __init__(self, client: OpenAI, model: str) -> None:
+        self._client = client
+        self._model = model
+
+    def generate(self, prompt: str) -> str:
+        response = self._client.chat.completions.create(
+            model=self._model, messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content or ""
+
+
+def _build_llm_providers(cfg: Config) -> list[tuple[str, llm.Adapter]]:
+    adapters: dict[str, llm.Adapter] = {
+        "gemini": _GeminiAdapter(genai.Client(api_key=cfg.google_api_key), cfg.gemini_model),
+        "huggingface": _OpenAICompatAdapter(
+            OpenAI(base_url="https://router.huggingface.co/v1", api_key=cfg.hf_token), cfg.hf_model,
+        ),
+    }
+    primary = _LLM_PROVIDER_NAMES[cfg.llm_provider - 1]
+    ordered = [primary, *[name for name in _LLM_PROVIDER_NAMES if name != primary]]
+    return [(name, adapters[name]) for name in ordered]
+
+
+def _primary_llm_model(cfg: Config) -> str:
+    primary = _LLM_PROVIDER_NAMES[cfg.llm_provider - 1]
+    return cfg.gemini_model if primary == "gemini" else cfg.hf_model
 
 
 def main() -> None:
@@ -53,7 +91,7 @@ def main() -> None:
     logger.info("loading whisper model=%s", cfg.whisper_model)
     whisper.load_model(cfg.whisper_model)
 
-    gemini.configure(lambda: _make_gemini_client(cfg.google_api_key), cfg.gemini_model)
+    llm.configure(_build_llm_providers(cfg))
 
     media_client = MediaClient(cfg.media_grpc_addr)
     content_client = ContentClient(cfg.content_grpc_addr)
@@ -63,7 +101,7 @@ def main() -> None:
     )
     deps = Deps(
         media=media_client, content=content_client, objects=object_store,
-        limits=build_limits(cfg), gemini_model=cfg.gemini_model, tts_voice=cfg.tts_voice,
+        limits=build_limits(cfg), llm_model=_primary_llm_model(cfg), tts_voice=cfg.tts_voice,
     )
 
     consumer = events.new_consumer(cfg.kafka_brokers)

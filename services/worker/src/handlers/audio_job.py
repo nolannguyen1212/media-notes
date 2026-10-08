@@ -17,7 +17,7 @@ import uuid
 from deps import Deps
 from errors import classify
 from events import AudioJobCommand
-from providers import gemini, tts
+from providers import llm, tts
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def _probe_duration_ms(mp3_bytes: bytes) -> int:
 
 def handle_script(cmd: AudioJobCommand, deps: Deps) -> None:
     with deps.limits.for_step("standalone_script").acquire():
-        script_text = gemini.draft_audio_script(cmd.input_text)
+        script_text = llm.draft_audio_script(cmd.input_text)
     deps.content.complete_script_draft(job_id=cmd.job_id, script_text=script_text)
 
 

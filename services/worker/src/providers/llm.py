@@ -1,7 +1,14 @@
-"""Gemini enrichment: summary, keywords, keypoints, notes. Adapted from
+"""LLM enrichment: summary, keywords, keypoints, notes. Adapted from
 apps/worker/src/summarizer.py and extractor.py, reshaped to content.proto's
 structured output (sentence-level citations, segment-ranged keypoints)
 instead of the v1 API's plain-text/ref-index shape.
+
+Supports multiple interchangeable backends (Gemini, Hugging Face Inference
+Router, ...) behind one Adapter protocol, since a single provider's API can
+become unreachable (quota, or an outright network-level block from certain
+server locations) without warning. `configure()` takes an ordered list of
+(name, adapter) pairs — the first is the active provider, every other one
+is tried in order as a fallback if it raises.
 """
 
 from __future__ import annotations
@@ -11,7 +18,6 @@ import logging
 from collections.abc import Callable
 from typing import Protocol
 
-from google import genai
 from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -28,16 +34,23 @@ class Segment(Protocol):
     segment_index: int
     text: str
 
+
+class Adapter(Protocol):
+    """One backend's call shape, reduced to the single operation this
+    module needs: a text prompt in, the model's raw text response out.
+    """
+
+    def generate(self, prompt: str) -> str: ...
+
+
 MAX_RETRIES = 3
 
-_make_client: Callable[[], genai.Client] | None = None
-_model_name = "gemini-2.5-flash-lite"
+_providers: list[tuple[str, Adapter]] = []
 
 
-def configure(make_client: Callable[[], genai.Client], model_name: str) -> None:
-    global _make_client, _model_name
-    _make_client = make_client
-    _model_name = model_name
+def configure(providers: list[tuple[str, Adapter]]) -> None:
+    global _providers
+    _providers = providers
 
 
 def _transcript_prompt_text(segments: list[Segment]) -> str:
@@ -56,16 +69,21 @@ def _custom_instructions_block(custom_instructions: str | None) -> str:
 
 
 def _call(prompt: str) -> str:
-    if _make_client is None:
-        raise RuntimeError("Gemini client not configured")
-    client = _make_client()
-    response = client.models.generate_content(model=_model_name, contents=prompt)
-    raw = (response.text or "").strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return raw.strip()
+    if not _providers:
+        raise RuntimeError("LLM providers not configured")
+    last_error: Exception | None = None
+    for name, adapter in _providers:
+        try:
+            raw = (adapter.generate(prompt) or "").strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            return raw.strip()
+        except Exception as e:  # noqa: BLE001 - any backend failure (network, quota, location block) falls through to the next provider
+            logger.warning("llm provider %s failed, trying next: %s", name, e)
+            last_error = e
+    raise RuntimeError(f"all llm providers failed: {last_error}")
 
 
 def _call_with_retry(prompt: str, parse: Callable[[str], object]) -> object:
@@ -75,8 +93,8 @@ def _call_with_retry(prompt: str, parse: Callable[[str], object]) -> object:
             return parse(_call(prompt))
         except (json.JSONDecodeError, ValidationError, ValueError) as e:
             last_error = e
-            logger.warning("gemini call attempt %d failed: %s", attempt, e)
-    raise RuntimeError(f"gemini call failed after {MAX_RETRIES} attempts: {last_error}")
+            logger.warning("llm call attempt %d failed: %s", attempt, e)
+    raise RuntimeError(f"llm call failed after {MAX_RETRIES} attempts: {last_error}")
 
 
 class _SentenceRef(BaseModel):
@@ -124,8 +142,8 @@ class _Keyword(BaseModel):
 def extract_keywords(
     segments: list[Segment], custom_instructions: str | None = None
 ) -> list[tuple[str, float, int]]:
-    """Returns up to 10 (keyword, score, position) tuples, ranked by
-    Gemini's own relevance score (content.proto's Keyword shape).
+    """Returns up to 10 (keyword, score, position) tuples, ranked by the
+    model's own relevance score (content.proto's Keyword shape).
     """
     prompt = (
         "Extract up to 10 keywords from the following transcript, each "
@@ -182,7 +200,7 @@ def draft_audio_script(description: str) -> str:
     """Drafts narration text from a loose description, for the standalone
     audio feature's "chat with AI" mode (docs/services/worker.md). Plain
     prose in, plain prose out — no transcript, no JSON structure, unlike
-    every other Gemini call in this module.
+    every other LLM call in this module.
     """
     prompt = (
         "You are a scriptwriting assistant. Write a short narration script "
