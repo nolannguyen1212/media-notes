@@ -25,15 +25,15 @@ def test_acquire_times_out_when_capacity_exhausted():
 def test_for_step_maps_every_known_step_kind():
     limits = Limits(
         whisper=StepLimiter(threading.Semaphore(1), 1),
-        gemini=StepLimiter(threading.Semaphore(1), 1),
+        llm=StepLimiter(threading.Semaphore(1), 1),
         tts=StepLimiter(threading.Semaphore(1), 1),
         thumbnail=StepLimiter(threading.Semaphore(1), 1),
     )
     assert limits.for_step("transcribe") is limits.whisper
-    assert limits.for_step("summary") is limits.gemini
-    assert limits.for_step("keywords") is limits.gemini
-    assert limits.for_step("keypoints") is limits.gemini
-    assert limits.for_step("notes") is limits.gemini
+    assert limits.for_step("summary") is limits.llm
+    assert limits.for_step("keywords") is limits.llm
+    assert limits.for_step("keypoints") is limits.llm
+    assert limits.for_step("notes") is limits.llm
     assert limits.for_step("summary_audio") is limits.tts
     assert limits.for_step("generate_thumbnail") is limits.thumbnail
 

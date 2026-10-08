@@ -23,8 +23,8 @@ class Config:
     minio_use_ssl: bool
     minio_media_bucket: str
 
-    google_api_key: str
-    gemini_model: str
+    groq_api_key: str
+    llm_model: str
     whisper_model: str
     tts_voice: str
 
@@ -33,7 +33,7 @@ class Config:
     # reservation is conductor's job, not implemented yet — this is only
     # this process's local limit.
     max_concurrent_whisper: int
-    max_concurrent_gemini: int
+    max_concurrent_llm: int
     max_concurrent_tts: int
     max_concurrent_thumbnail: int
 
@@ -52,12 +52,12 @@ def load_config() -> Config:
         minio_secret_key=os.environ.get("MINIO_SECRET_KEY", "minioadmin"),
         minio_use_ssl=os.environ.get("MINIO_USE_SSL", "false").lower() == "true",
         minio_media_bucket=os.environ.get("MINIO_MEDIA_BUCKET", "media"),
-        google_api_key=os.environ.get("GOOGLE_API_KEY", ""),
-        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite"),
+        groq_api_key=os.environ.get("GROQ_API_KEY", ""),
+        llm_model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
         whisper_model=os.environ.get("WHISPER_MODEL", "base"),
         tts_voice=os.environ.get("WORKER_TTS_VOICE", "en-US-AriaNeural"),
         max_concurrent_whisper=int(os.environ.get("WORKER_MAX_CONCURRENT_WHISPER", "1")),
-        max_concurrent_gemini=int(os.environ.get("WORKER_MAX_CONCURRENT_GEMINI", "4")),
+        max_concurrent_llm=int(os.environ.get("WORKER_MAX_CONCURRENT_LLM", "4")),
         max_concurrent_tts=int(os.environ.get("WORKER_MAX_CONCURRENT_TTS", "2")),
         max_concurrent_thumbnail=int(os.environ.get("WORKER_MAX_CONCURRENT_THUMBNAIL", "2")),
         step_timeout_seconds=int(os.environ.get("WORKER_STEP_TIMEOUT_SECONDS", "600")),

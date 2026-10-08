@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from deps import Deps
 from events import StepCommand
-from providers import gemini
+from providers import llm
 
 NOTE_FORMAT = "markdown"
 
@@ -15,7 +15,7 @@ def handle(cmd: StepCommand, deps: Deps) -> None:
     transcript = deps.content.get_transcript(cmd.media_id)
 
     with deps.limits.for_step(cmd.step).acquire():
-        body = gemini.generate_notes(transcript.segments, cmd.prompt_override)
+        body = llm.generate_notes(transcript.segments, cmd.prompt_override)
 
     deps.content.store_notes(
         idempotency_key=cmd.idempotency_key,

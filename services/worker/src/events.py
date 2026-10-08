@@ -46,7 +46,7 @@ class StepCommand:
     voice: str | None = None
     # Only present when the caller saved a custom system prompt for this
     # step's section (conductor's dispatchStep/promptOverrideForStep omits
-    # this field otherwise) — appended to the LLM prompt in providers/gemini.py.
+    # this field otherwise) — appended to the LLM prompt in providers/llm.py.
     prompt_override: str | None = None
 
 
