@@ -2,13 +2,6 @@
 apps/worker/src/summarizer.py and extractor.py, reshaped to content.proto's
 structured output (sentence-level citations, segment-ranged keypoints)
 instead of the v1 API's plain-text/ref-index shape.
-
-Supports multiple interchangeable backends (Gemini, Hugging Face Inference
-Router, ...) behind one Adapter protocol, since a single provider's API can
-become unreachable (quota, or an outright network-level block from certain
-server locations) without warning. `configure()` takes an ordered list of
-(name, adapter) pairs — the first is the active provider, every other one
-is tried in order as a fallback if it raises.
 """
 
 from __future__ import annotations
@@ -80,7 +73,7 @@ def _call(prompt: str) -> str:
                 if raw.startswith("json"):
                     raw = raw[4:]
             return raw.strip()
-        except Exception as e:  # noqa: BLE001 - any backend failure (network, quota, location block) falls through to the next provider
+        except Exception as e:  # noqa: BLE001
             logger.warning("llm provider %s failed, trying next: %s", name, e)
             last_error = e
     raise RuntimeError(f"all llm providers failed: {last_error}")
