@@ -1,0 +1,22 @@
+classes: {
+  svc: {
+    width: 220
+    height: 130
+    style.font-size: 20
+    label.near: top-center
+    icon.near: center-center
+  }
+}
+
+identity: Identity {icon: icons/go.svg; class: svc; top: 0; left: 0}
+hermes: Hermes {icon: icons/go.svg; class: svc; top: 0; left: 640}
+media: Media {icon: icons/go.svg; class: svc; top: 260; left: 320}
+minio: MinIO {icon: icons/minio.svg; shape: cylinder; class: svc; label.near: top-center; icon.near: bottom-center; width: 150; height: 150; top: 510; left: 35}
+content: Content {icon: icons/go.svg; class: svc; top: 520; left: 320}
+conductor: Conductor {icon: icons/go.svg; class: svc; top: 520; left: 640}
+
+hermes -> media: "trash / restore\ndelete permanently (gRPC)"
+identity -> media: "account.deletion.requested"
+media -> minio: "delete objects"
+media -> content: "media.deletion.requested"
+media -> conductor: "media.deletion.requested"

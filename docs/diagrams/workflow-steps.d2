@@ -1,0 +1,21 @@
+classes: {
+  step: {
+    width: 200
+    height: 70
+    style.font-size: 20
+  }
+}
+
+transcribe: transcribe {class: step; top: 175; left: 0}
+summary: summary {class: step; top: 0; left: 340}
+keywords: keywords {class: step; top: 115; left: 340}
+keypoints: keypoints {class: step; top: 230; left: 340}
+notes: notes {class: step; top: 345; left: 340}
+audio: summary_audio {class: step; top: 0; left: 680}
+thumbnail: "generate_thumbnail\n(video only, not billed)" {class: step; width: 260; height: 80; style.stroke-dash: 4; top: 470; left: 0}
+
+transcribe -> summary
+transcribe -> keywords
+transcribe -> keypoints
+transcribe -> notes
+summary -> audio
