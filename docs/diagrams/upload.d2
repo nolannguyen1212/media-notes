@@ -1,0 +1,16 @@
+direction: down
+
+classes: {
+  node: {style.font-size: 22; width: 220; height: 130}
+}
+
+web: Web {icon: icons/react.svg; class: node}
+hermes: Hermes {icon: icons/go.svg; class: node}
+media: Media {icon: icons/go.svg; class: node}
+storage: MinIO {icon: icons/minio.svg; icon.near: center-center; label.near: outside-top-center; shape: cylinder; class: node}
+kafka: Kafka {icon: icons/apachekafka.svg; label.near: top-center; shape: queue; class: node; height: 100}
+
+web -> hermes: "requestUpload\nconfirmUpload"
+hermes -> media: "CreateUpload → presigned URL\nConfirmUpload (gRPC)"
+web -> storage: "PUT file"
+media -> kafka: "processing.requested"

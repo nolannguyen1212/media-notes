@@ -1,89 +1,52 @@
-direction: right
-
 classes: {
-  node: {
-    style.font-size: 22
-    width: 200
-    height: 200
-  }
-  store: {
-    style.font-size: 22
-    width: 200
-    height: 200
+  svc: {
+    width: 150
+    height: 150
+    style.font-size: 20
+    label.near: top-center
+    icon.near: center-center
   }
 }
 
-developer: Developer {shape: person; class: node}
-ai: "AI Providers" {shape: cloud; class: node}
+user: User {shape: person; style.font-size: 20; width: 80; height: 100; top: 480; left: 0}
 
-pipeline: "CI/CD" {
-  direction: right
-  style.stroke-dash: 3
+cluster: Kubernetes Cluster {
   style.font-size: 22
-  github: "GitHub\n(source + Actions)" {icon: icons/github.svg; class: node}
-  cd: "GitOps sync\n(ArgoCD)" {icon: icons/argo.svg; class: node}
+  top: 0
+  left: 160
 
-  github -> cd: build, test, push image,\ncommit tag
+  minio: MinIO {icon: icons/minio.svg; shape: cylinder; class: svc; label.near: outside-top-center; top: 160; left: 40}
+  web: Web {icon: icons/react.svg; class: svc; top: 395; left: 40}
+  hermes: Hermes {icon: icons/go.svg; class: svc; top: 395; left: 330}
+
+  sync: "Domain services (gRPC)" {
+    style.font-size: 20
+    top: 80
+    left: 620
+    content: Content {icon: icons/go.svg; class: svc; top: 0; left: 0}
+    identity: Identity {icon: icons/go.svg; class: svc; top: 170; left: 0}
+    billing: Billing {icon: icons/go.svg; class: svc; top: 340; left: 0}
+    media: Media {icon: icons/go.svg; class: svc; top: 510; left: 0}
+  }
+
+  kafka: Kafka {icon: icons/apachekafka.svg; shape: queue; class: svc; width: 200; height: 100; top: 420; left: 1050}
+
+  workflow: Workflow {
+    style.font-size: 20
+    top: 235
+    left: 1480
+    worker: "Conductor Worker" {icon: icons/python.svg; class: svc; width: 200; top: 0; left: 0}
+    conductor: Conductor {icon: icons/go.svg; class: svc; width: 200; top: 200; left: 0}
+  }
+
+  pad: "" {style.opacity: 0; width: 10; height: 10; top: 930; left: 1900}
 }
 
-cluster: "Kubernetes Cluster" {
-  direction: right
-  icon: icons/kubernetes.svg
-  style.font-size: 22
-
-  gateway: Gateway {
-    direction: right
-    style.font-size: 22
-    web: Web {icon: icons/react.svg; class: node}
-    hermes: Hermes {icon: icons/go.svg; class: node}
-    web -> hermes: GraphQL
-  }
-
-  services: Services {
-    grid-columns: 3
-    style.font-size: 22
-
-    core: "Core" {
-      grid-rows: 2
-      identity: Identity {icon: icons/go.svg; class: node}
-      billing: Billing {icon: icons/go.svg; class: node}
-    }
-
-    media_domain: "Media Domain" {
-      grid-rows: 2
-      media: Media {icon: icons/go.svg; class: node}
-      content: Content {icon: icons/go.svg; class: node}
-    }
-
-    workflow: Workflow {
-      grid-rows: 2
-      conductor: Conductor {icon: icons/go.svg; class: node}
-      worker: "Conductor\nWorker" {icon: icons/python.svg; class: node}
-
-      conductor -> worker: Kafka
-    }
-
-    media_domain.media -> workflow.conductor: Kafka
-  }
-
-  data: "Data & Messaging" {
-    direction: down
-    style.font-size: 22
-    redis: Redis {icon: icons/redis.svg; shape: cylinder; class: store}
-    postgres: Postgres {icon: icons/postgresql.svg; shape: cylinder; class: store}
-    kafka: Kafka {icon: icons/apachekafka.svg; shape: queue; class: store}
-    storage: "Object\nStorage" {icon: icons/minio.svg; shape: cylinder; class: store}
-  }
-}
-
-developer -> pipeline.github: push
-pipeline.cd -> cluster: sync
-
-cluster.gateway.hermes -> cluster.services: gRPC
-
-cluster.services -> ai: Whisper / Gemini / TTS
-
-cluster.gateway -> cluster.data.redis: cache
-cluster.services -> cluster.data.postgres: reads / writes
-cluster.services -> cluster.data.kafka: events
-cluster.services -> cluster.data.storage: media I/O
+user -> cluster.web
+cluster.web -> cluster.hermes: GraphQL
+cluster.web -> cluster.minio: upload
+cluster.hermes -> cluster.sync: gRPC
+cluster.sync <-> cluster.kafka: events
+cluster.kafka -> cluster.workflow.worker: commands
+cluster.kafka <-> cluster.workflow.conductor: events
+cluster.workflow.worker -> cluster.sync.content: result (gRPC)

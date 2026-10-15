@@ -1,0 +1,22 @@
+classes: {
+  node: {
+    style.font-size: 22
+    width: 270
+    height: 130
+    label.near: top-center
+    icon.near: center-center
+  }
+}
+
+media: Media {icon: icons/go.svg; class: node; top: 0; left: 470}
+conductor: Conductor {icon: icons/go.svg; class: node; top: 270; left: 470}
+billing: Billing {icon: icons/go.svg; class: node; top: 540; left: 0}
+worker: "Conductor Worker" {icon: icons/python.svg; class: node; top: 540; left: 470}
+content: Content {icon: icons/go.svg; class: node; top: 540; left: 940}
+
+media -> conductor: processing.requested
+conductor -> billing: "Reserve (gRPC)\nstatus.changed"
+conductor -> worker: step.requested
+worker -> content: Save result (gRPC)
+content -> conductor: step.completed
+conductor -> media: status.changed
