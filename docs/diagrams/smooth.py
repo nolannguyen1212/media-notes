@@ -161,7 +161,7 @@ def smooth(path, down, bend):
             side = -dy * (mids[i][0] - cx) + dx * (mids[i][1] - cy)
             pair_bow[i] = 55 if side >= 0 else -55
 
-    masks = re.findall(r'<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)" fill="black"></rect>', svg)
+    holes = []
     out = svg
     for i, (m, _) in enumerate(groups):
         body = m.group(2)
@@ -184,12 +184,13 @@ def smooth(path, down, bend):
             dx, dy = mx - tx, my - ty + 5 - max(lines - 1, 0) * 9
             new = re.sub(r'(<(?:text|tspan) x=")([-\d.]+)"', lambda t: '%s%.2f"' % (t.group(1), float(t.group(2)) + dx), new)
             new = new.replace('<text x="%.2f" y="%s"' % (tx + dx, text.group(2)), '<text x="%.2f" y="%.2f"' % (tx + dx, ty + dy), 1)
-            for r in masks:
-                rx, ry, rw, rh = map(float, r)
-                if abs(rx + rw / 2 - tx) < 1 and ry - 2 <= ty <= ry + rh + 30:
-                    old = '<rect x="%s" y="%s" width="%s" height="%s" fill="black">' % r
-                    out = out.replace(old, '<rect x="%.2f" y="%.2f" width="%s" height="%s" fill="black">' % (rx + dx, ry + dy, r[2], r[3]), 1)
+            words = re.findall(r">([^<>]+)</(?:tspan|text)>", new)
+            width = max(len(w) for w in words) * 8 + 10
+            height = max(lines, 1) * 19 + 6
+            holes.append('<rect x="%.2f" y="%.2f" width="%d" height="%d" fill="black"></rect>' % (mx - width / 2, my - height / 2, width, height))
         out = out.replace(body, new, 1)
+    out = re.sub(r'<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" fill="black"></rect>\n?', "", out)
+    out = out.replace("</mask>", "\n".join(holes) + "\n</mask>", 1)
     open(path, "w").write(out)
 
 
