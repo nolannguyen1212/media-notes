@@ -10,7 +10,7 @@ python3 smooth.py architecture.svg right --bend 0.15
 D2_LAYOUT=tala d2 --theme 200 processing.d2 processing.svg
 python3 smooth.py processing.svg down
 D2_LAYOUT=tala d2 --theme 200 deploy.d2 deploy.svg
-python3 smooth.py deploy.svg right
+python3 smooth.py deploy.svg right --bend 0.15 --fan
 D2_LAYOUT=tala d2 --theme 200 workflow-steps.d2 workflow-steps.svg
 python3 smooth.py workflow-steps.svg right --bend 0.1
 for f in deletion audio-job; do
