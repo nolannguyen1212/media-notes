@@ -3,8 +3,6 @@
 - Status: Accepted
 - Date: 2026-07-25
 - Decision owners: Media Notes maintainers
-- Related Jira issue: KAN-20
-- Related implementation issue: KAN-125
 - Related design: [architecture.md](../architecture.md)
 
 ## Context
@@ -166,7 +164,7 @@ semantics.
 
 ## Validation
 
-KAN-125 must include:
+The polling implementation must include:
 
 - client tests with controlled time covering start, terminal stop, hidden and
   offline pause, resume refetch, newer-version updates, backoff, `Retry-After`,

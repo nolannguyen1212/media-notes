@@ -3,8 +3,6 @@
 - Status: Accepted
 - Date: 2026-07-25
 - Decision owners: Media Notes maintainers
-- Related Jira issue: KAN-21
-- Related implementation issue: KAN-132
 - Related design: [architecture.md](../architecture.md)
 
 ## Context
@@ -141,7 +139,7 @@ operation remains pending for more than 24 hours.
 
 ## Rollout and Rollback
 
-KAN-132 introduces deletion behind a server-side feature flag. The rollout
+Deletion is introduced behind a server-side feature flag. The rollout
 first runs in dry-run mode to enumerate exact owned rows and object keys without
 deleting them. Production enablement requires restore testing, tombstone replay
 testing, DLQ recovery, and confirmation of billing and backup retention policy.
@@ -175,7 +173,7 @@ disaster and must not violate an acknowledged user deletion.
 
 ## Validation
 
-KAN-132 must include:
+The deletion implementation must include:
 
 - unit tests for state transitions, concurrent requests, terminal-state
   rejection, exact object enumeration, and idempotent missing data;

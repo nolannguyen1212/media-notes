@@ -1,7 +1,6 @@
 # Whisper CPU and GPU Benchmark
 
 - Date: 2026-07-25
-- Related Jira issue: KAN-45
 - Status: Accepted
 
 ## Question
@@ -94,8 +93,8 @@ unsupported absolute GPU values from the ratio.
 
 Use GPU execution for production Whisper workers. Keep CPU `int8` as the
 local-development and bounded fallback configuration. The accepted 17×
-measured speedup is sufficient for this backend choice; KAN-45 does not require
-another GPU benchmark.
+measured speedup is sufficient for this backend choice; no further GPU
+benchmark is required for it.
 
 This ratio is not a production capacity or cost model. Worker concurrency,
 queue limits, autoscaling thresholds, instance sizing, and provider objectives

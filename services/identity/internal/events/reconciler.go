@@ -16,7 +16,7 @@ type OverdueReconciler interface {
 // Reconciler periodically republishes deletion-requested events for
 // operations that have been pending too long, covering lost or failed
 // outbox publications. It intentionally has no DLQ, feature flag, or
-// dry-run mode: those are rollout concerns (ADR 0006 / KAN-132) that
+// dry-run mode: those are rollout concerns (ADR 0006) that
 // assume downstream owners already exist to reconcile against.
 type Reconciler struct {
 	account   OverdueReconciler

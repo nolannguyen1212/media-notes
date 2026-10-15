@@ -3,8 +3,6 @@
 - Status: Accepted
 - Date: 2026-07-25
 - Decision owners: Media Notes maintainers
-- Related Jira issue: KAN-49
-- Related implementation issues: KAN-95, KAN-99
 - Related design: [architecture.md](../architecture.md)
 
 ## Context

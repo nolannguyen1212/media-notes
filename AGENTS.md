@@ -16,14 +16,10 @@ files may refine them for a service or package.
 
 Before consequential changes, read the relevant sources:
 
-- `proposal/mn2_design.md` for the Media Notes 2 target design.
-- `proposal/mn2_brainstorm.md` for decisions, alternatives, and open questions.
+- `docs/architecture.md` for the current system design.
 - `docs/adr/` for accepted architecture decisions.
+- `docs/services/` for each service's scope, data, and contracts.
 - `services/README.md` for Go service boundaries.
-- Jira project `KAN` for implementation phase, blockers, and acceptance criteria.
-
-Do not start a Jira ticket while an unresolved `is blocked by` relationship
-exists unless the user explicitly changes the plan.
 
 ## Working agreement
 
@@ -36,8 +32,6 @@ exists unless the user explicitly changes the plan.
 - Add comments only for non-obvious constraints or decisions.
 - Run the smallest relevant checks first, followed by broader project checks.
 - Never report a check as passed unless it was run successfully.
-- Keep Jira status and implementation evidence synchronized when work is
-  performed against a Jira ticket.
 
 ## Service boundaries
 
