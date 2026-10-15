@@ -1,64 +1,47 @@
-# Service Database Migrations
+# Database Migrations
 
-Status: proposed implementation specification.
+Each stateful service owns one PostgreSQL database, role, and migration
+history. Services never share a database or a schema; on the shared local
+server, `deploy/postgres/init/` creates one role and database per service so
+a service credential cannot connect to another service's database.
 
-Each stateful Media Notes service must own one PostgreSQL database,
-credential, migration directory, and migration history table. Services do
-not share a database or a schema within a shared database: PostgreSQL
-privileges, not naming conventions, enforce that a service credential
-cannot even connect to another service's database.
-
-| Service | Role | Database | Migration directory |
+| Service | Database | Schema | Migrations |
 | --- | --- | --- | --- |
-| `identity` | `identity` | `identity` | `services/identity/migrations` |
-| `billing` | `billing` | `billing` | `services/billing/migrations` |
-| `media` | `media` | `media` | `services/media/migrations` |
-| `content` | `content` | `content` | `services/content/migrations` |
-| `conductor` | `conductor` | `workflow` | `services/conductor/migrations` |
+| `identity` | `identity` | `public` | `V1`–`V2` |
+| `billing` | `billing` | `billing` | `V1`–`V3` |
+| `media` | `media` | `public` | `V1`–`V5` |
+| `content` | `content` | `public` | `V1`–`V3` |
+| `conductor` | `workflow` | `public` | `V1`–`V4` |
 
-`hermes` and worker executors are stateless and do not own migrations.
-Migration history tables (`flyway_schema_history`) live in each service's own
-database, in its default `public` schema.
+`hermes` and `conductor-worker` are stateless and own no migrations.
 
 ## Tooling
 
-Migrations use [Flyway](https://flywaydb.org). Flyway is not a Go library, so
-it runs as a separate step — a Docker container locally, a deploy step in
-CI/CD — rather than being embedded in the service binary. A service checks at
-startup that its migrations have already been applied (see
-`internal/store.CheckMigrated` in `identity`) and fails fast if they have not,
-rather than trying to migrate itself.
+Migrations use [Flyway](https://flywaydb.org) 11 and live in
+`services/<name>/migrations/V<n>__<description>.sql`. Flyway runs outside the
+service binary:
 
-Flyway Community does not support automatic rollback (`flyway undo` requires
-Flyway Teams). Destructive changes therefore ship as a new forward migration,
-with an optional hand-maintained script under `rollback/` for
-operators to apply manually with `psql` if needed.
+- Locally: `make <service>:migrate` runs the `flyway/flyway:11` container
+  against the infra Compose network.
+- In Compose: each service has a `<service>-migrate` container.
+- In CI: each service has a migration image (`<service>-migrate.dockerfile`)
+  pushed to GHCR.
 
-## Create a migration
+At startup a service only checks that `flyway_schema_history` exists
+(`internal/store.CheckMigrated`) and exits if it does not. It never migrates
+itself.
 
-Use Flyway's versioned naming in the owning directory:
+## Rollback
 
-```text
-V2__create_media.sql
-```
+Flyway Community has no `undo`. Every migration has a hand-written reverse
+script in `services/<name>/rollback/U<n>__<description>.sql`, applied
+manually with `psql` in reverse order.
 
-Prefer transactional, backward-compatible changes. For destructive changes:
+## Writing a migration
 
-1. Deploy code that no longer depends on the old shape.
-2. Observe the compatibility window.
-3. Remove the old object in a later migration.
-
-Do not edit an applied migration; Flyway checksums each applied file and
-`migrate` fails if one has changed. Add a corrective migration instead.
-
-## Implementation acceptance criteria
-
-- Local initialization creates an isolated role and database per service and
-  revokes unsafe default privileges.
-- Production credentials are provisioned outside repository scripts.
-- Tool versions are pinned and every service sequence is validated in CI.
-- Integration tests exercise apply, status, and reapply; rollback is a
-  manually tested, manually applied script, not an automated Flyway command.
-- Tests prove that a non-owning role cannot connect to another service's
-  database.
-- A failed migration stops immediately and exposes actionable status.
+- Never edit an applied migration; Flyway checksums every applied file. Add a
+  new one instead.
+- Keep changes backward compatible with the running code. For a destructive
+  change: ship code that no longer uses the old shape, wait for it to roll
+  out, then drop the old object in a later migration.
+- Add the matching `U<n>` rollback script in the same change.

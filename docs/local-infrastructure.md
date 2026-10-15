@@ -1,30 +1,37 @@
 # Local Infrastructure
 
-Status: proposed implementation specification.
+`docker-compose.yml` runs the infrastructure every service needs. Start it
+with `make infra:up`, then create the Kafka topics with
+`make infra:kafka-topics`.
 
-The local development profile provides PostgreSQL, Redis, MinIO, and Kafka
-through Docker Compose.
+| Service | Host address | Credentials |
+| --- | --- | --- |
+| PostgreSQL | `localhost:5432` | `admin` / `password`; one role per service, password equal to its name |
+| Kafka (KRaft, single node) | `localhost:9092` (`kafka:29092` inside Compose) | none |
+| Kafka UI | `http://localhost:8080` | none |
+| Redis | `localhost:6379` | password `redisadmin` (`REDIS_PASSWORD`) |
+| MinIO API | `localhost:9002` | `minioadmin` / `minioadmin` (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`) |
+| MinIO console | `http://localhost:9001` | same as the API |
 
-## Required topology
+The Compose `app` profile also runs every service and its migration
+container (`docker compose --profile app up --build`). Those services use
+host networking, so they reach the infrastructure at the host addresses
+above.
 
-| Service | Host connection | Container connection | Local credentials |
-| --- | --- | --- | --- |
-| PostgreSQL | `localhost:5432` | `postgres:5432` | `admin` / `password` |
-| Redis | `localhost:6379` | `redis:6379` | password `redisadmin` |
-| MinIO API | `localhost:9002` | `minio:9000` | `minioadmin` / `minioadmin` |
-| MinIO console | `http://localhost:9001` | `minio:9001` | `minioadmin` / `minioadmin` |
-| Kafka | `localhost:9092` | `kafka:29092` | none |
+## Commands
 
-Kafka may run as one combined KRaft broker/controller locally. Plaintext
-listeners and default credentials are local-only and must not be reused in
-deployed environments.
+| Command | Effect |
+| --- | --- |
+| `make infra:up` | Start the infrastructure containers |
+| `make infra:kafka-topics` | Create the Kafka topics (idempotent) |
+| `make infra:down` | Stop the containers, keep the volumes |
+| `make infra:purge` | Remove the project's containers and volumes, then run `docker system prune -a -f` and `docker volume prune -a -f` |
 
-## Implementation acceptance criteria
+`make infra:purge` also prunes Docker images and volumes from other projects
+on the machine.
 
-- Start, status, logs, stop, and purge commands are documented and scoped to
-  this Compose project.
-- Startup waits for bounded health checks and reports a failing dependency.
-- Credentials are overridable without committing environment files.
-- Purge removes only project-owned containers and volumes; it must not run
-  global Docker prune commands.
-- Port conflicts and volume initialization behavior are documented.
+PostgreSQL runs `deploy/postgres/init/` only on first start against an empty
+volume. To recreate the service roles and databases, purge the volume first.
+
+Kafka auto-creates topics locally, and all listeners are plaintext. These
+settings and the default credentials are for local development only.

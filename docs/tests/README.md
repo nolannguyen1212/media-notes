@@ -13,6 +13,6 @@ complement to the automated unit/integration tests under each
 | Media | [media/manual.md](media/manual.md) |
 | Content | [content/manual.md](content/manual.md) |
 
-Only services with a working gRPC implementation get a guide here; see
-[`docs/services/README.md`](../services/README.md) for every service's
-design, including ones not yet built.
+`hermes`, `conductor`, and `conductor-worker` have no guide: hermes is
+GraphQL, and the other two are driven by Kafka. See
+[`docs/services/`](../services/) for every service's design.

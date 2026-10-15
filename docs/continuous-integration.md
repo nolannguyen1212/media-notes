@@ -1,30 +1,26 @@
 # Continuous Integration
 
-Status: proposed implementation specification.
+`.github/workflows/ci.yml` runs on every push and pull request to `master`.
 
-CI checks must be added with the implementation and must remain reproducible
-locally.
+| Job | Runs | Local equivalent |
+| --- | --- | --- |
+| `web` | `pnpm install --frozen-lockfile`, codegen, build, Biome lint, type-check, tests | `make web:build web:lint web:typecheck web:test` |
+| `services` | Build and test every Go service | `make build:v2 test:v2` |
+| `build-and-push` | After both pass, on `master` pushes only | `make <service>:docker-build` |
 
-## Required jobs
+`build-and-push` builds 13 images and pushes them to GHCR as
+`ghcr.io/nolannguyen1212/<image>:<sha>` and `:latest`: one app image for
+`web`, `hermes`, `identity`, `billing`, `media`, `content`, `conductor`, and
+`conductor-worker`, plus one Flyway migration image for each service that owns
+a database. The `web` image is built with
+`VITE_HERMES_URL=https://medianotes.api.bbmonster.online`. The job uses the
+workflow's `GITHUB_TOKEN` with `packages: write`; every other job is
+read-only.
 
-| Job | Coverage |
-| --- | --- |
-| Web quality | Frozen pnpm install, build, Biome lint, TypeScript checks, and tests |
-| Service quality and contracts | Go formatting, vet, Protobuf validation, event-schema syntax, tests, and builds |
-| Container matrix | Every independently deployable service |
+## Not covered yet
 
-The workflow grants read-only repository permission. Container jobs build
-images without publishing them. Publishing, signing, deployment environments,
-and registry credentials remain separate release concerns.
-
-## Implementation acceptance criteria
-
-- Pull requests run frozen dependency installation, formatting, linting,
-  type-checking, tests, contract compatibility checks, and builds relevant to
-  the changed area.
-- Every CI check has a documented local equivalent.
-- Service images build independently, run as non-root, and contain only the
-  required runtime artifact.
-- Build jobs do not publish images or receive deployment credentials.
-- Branch protection names only checks that exist and are stable.
-- Secrets and local environment files are excluded from build contexts.
+- Buf lint and breaking-change checks (`make proto:lint` runs locally only).
+- Python worker tests (`make worker:test` runs locally only).
+- Integration tests (`make test:v2-integration`, Docker required).
+- Deployment: the Kubernetes manifests and ArgoCD sync are not in this
+  repository.
