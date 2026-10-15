@@ -64,7 +64,7 @@ def center(b):
     return (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
 
 
-def ports(edges, boxes):
+def ports(edges, boxes, fan):
     slots = {}
     for i, (src, dst, s_side, d_side) in enumerate(edges):
         slots.setdefault((src, s_side), []).append((i, 0, center(boxes[dst])))
@@ -77,8 +77,9 @@ def ports(edges, boxes):
         length = (b[2] - b[0]) if horizontal else (b[3] - b[1])
         gap = min(70, length * 0.7 / max(len(items), 1))
         cx, cy = center(b)
+        shared = fan and all(end == 0 for _, end, _ in items)
         for k, (i, end, _) in enumerate(items):
-            off = (k - (len(items) - 1) / 2) * gap
+            off = 0 if shared else (k - (len(items) - 1) / 2) * gap
             if side == "top":
                 p = (cx + off, b[1])
             elif side == "bottom":
@@ -134,7 +135,7 @@ def edge_groups(svg, boxes):
     return groups
 
 
-def smooth(path, down, bend):
+def smooth(path, down, bend, fan):
     svg = open(path).read()
     boxes = read_boxes(svg)
     groups = edge_groups(svg, boxes)
@@ -142,7 +143,7 @@ def smooth(path, down, bend):
     for _, (src, dst) in groups:
         s_side, d_side = sides(boxes[src], boxes[dst], down)
         edges.append((src, dst, s_side, d_side))
-    pts = ports(edges, boxes)
+    pts = ports(edges, boxes, fan)
     pairs = {}
     for i, (src, dst, _, _) in enumerate(edges):
         pairs.setdefault(tuple(sorted((src, dst))), []).append(i)
@@ -196,4 +197,4 @@ def smooth(path, down, bend):
 
 if __name__ == "__main__":
     bend = float(sys.argv[sys.argv.index("--bend") + 1]) if "--bend" in sys.argv else 0
-    smooth(sys.argv[1], sys.argv[2] == "down", bend)
+    smooth(sys.argv[1], sys.argv[2] == "down", bend, "--fan" in sys.argv)

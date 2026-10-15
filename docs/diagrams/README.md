@@ -27,7 +27,8 @@ Every TALA diagram places every node by hand with `top`/`left` so the layout
 stays balanced and the main path sits on one straight line. `smooth.py`
 redraws every edge as a straight line between box sides and bends it only when
 it would touch another box or a parallel edge. `--bend 0.15` arcs diagonal
-edges, bowing up toward a higher target and down toward a lower one.
+edges, bowing up toward a higher target and down toward a lower one. `--fan`
+starts every edge leaving the same side of a node from that side's center.
 
 Theme 200 is Dark Mauve, rendered as a single fixed-theme SVG (no
 `prefers-color-scheme` variant, so it looks the same regardless of the
