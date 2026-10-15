@@ -15,17 +15,24 @@ jobs, carried over Kafka and coordinated by a workflow engine.
   `summarize`, `extract_keywords`, `extract_keypoints`, `generate_notes`,
   and `generate_audio_summary`. Only the steps you select run and get
   billed.
-- **Prompt overrides**: every Gemini-backed step accepts a custom
-  instruction appended to its prompt, per request.
+- **Custom prompts**: save your own instruction for each LLM step
+  (summary, keywords, keypoints, notes); it is appended to that step's
+  prompt on every processing request.
 - **Voice selection**: `generate_audio_summary` accepts an optional TTS
   voice, per request.
-- **Automatic thumbnails**: generated for every upload regardless of which
-  steps you select, and not billed.
-- **Broad format support**: MP4, MOV, MKV, WebM, MP3, or WAV, up to 4 hours
-  of measured duration, probed server side rather than trusted from the
+- **Automatic thumbnails**: generated for every video upload, not billed;
+  you can also upload your own.
+- **Broad format support**: MP4, MOV, MKV, WebM, MP3, WAV, or M4A up to
+  500 MiB, checked against the stored object rather than trusted from the
   client.
+- **Reprocessing**: add or regenerate outputs for media that already
+  finished processing.
+- **Trash**: deleted media can be restored for 30 days before it is removed
+  for good.
+- **Standalone audio**: paste text, or describe what you want and let the
+  LLM draft a script, then turn it into speech.
 - **Credit-based billing**: each step reserves credit up front, settles on
-  success, and releases or refunds it on permanent failure.
+  success, and releases it on permanent failure.
 - **Subscriptions and top-ups**: credits are purchased through Polar-backed
   checkout exposed by `hermes`.
 
@@ -81,7 +88,7 @@ moves through the same lifecycle:
 A retriable failure is redispatched with an incremented attempt, up to
 `CONDUCTOR_MAX_STEP_ATTEMPTS` (3 by default). Once exhausted, the event
 goes to the dead-letter queue, the workflow is marked failed, and `billing`
-releases or refunds the reserved credit. Each `conductor-worker` command has
+releases the reserved credit. Each `conductor-worker` command has
 its own timeout (`WORKER_STEP_TIMEOUT_SECONDS`, 600s by default).
 
 ## Deployment
