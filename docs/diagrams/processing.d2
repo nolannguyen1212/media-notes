@@ -15,7 +15,7 @@ worker: "Conductor Worker" {icon: icons/python.svg; class: node; top: 540; left:
 content: Content {icon: icons/go.svg; class: node; top: 540; left: 940}
 
 media -> conductor: processing.requested
-conductor -> billing: "Reserve (gRPC)\nstatus.changed"
+conductor -> billing: "GetQuote (gRPC)\nreserve / settle (Kafka)"
 conductor -> worker: step.requested
 worker -> content: Save result (gRPC)
 content -> conductor: step.completed
