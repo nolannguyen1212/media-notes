@@ -8,21 +8,21 @@ classes: {
   }
 }
 
-dev: Developer {shape: person; style.font-size: 20; width: 80; height: 100; top: 145; left: 0}
+dev: Developer {icon: icons/user.svg; class: svc; width: 160; top: 120; left: 0}
 
 actions: GitHub Actions {
   style.font-size: 22
   top: 60
-  left: 200
+  left: 360
   checks: "Web + Go checks" {icon: icons/github.svg; class: svc; top: 0; left: 0}
   build: "Build & push" {icon: icons/github.svg; class: svc; top: 0; left: 300}
 }
 
-ghcr: GHCR {icon: icons/github.svg; class: svc; top: 120; left: 1000}
+ghcr: GHCR {icon: icons/github.svg; class: svc; top: 120; left: 1160}
 
-gitops: "k8s-deploy repo" {icon: icons/github.svg; class: svc; top: 420; left: 260}
-argocd: ArgoCD {icon: icons/argo.svg; class: svc; top: 420; left: 630}
-cluster: "Kubernetes (k3s)" {icon: icons/kubernetes.svg; class: svc; top: 420; left: 1000}
+gitops: "k8s-deploy repo" {icon: icons/github.svg; class: svc; top: 420; left: 420}
+argocd: ArgoCD {icon: icons/argo.svg; class: svc; top: 420; left: 790}
+cluster: "Kubernetes (k3s)" {icon: icons/kubernetes.svg; class: svc; top: 420; left: 1160}
 
 dev -> actions.checks: push to master
 actions.checks -> actions.build: pass
