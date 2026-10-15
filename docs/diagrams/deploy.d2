@@ -1,0 +1,28 @@
+classes: {
+  svc: {
+    width: 200
+    height: 150
+    style.font-size: 20
+    label.near: top-center
+    icon.near: center-center
+  }
+}
+
+dev: Developer {shape: person; style.font-size: 20; width: 80; height: 100; top: 145; left: 0}
+
+actions: GitHub Actions {
+  style.font-size: 22
+  top: 60
+  left: 200
+  checks: "Web + Go checks" {icon: icons/github.svg; class: svc; top: 0; left: 0}
+  build: "Build & push" {icon: icons/github.svg; class: svc; top: 0; left: 300}
+}
+
+ghcr: "GHCR" {icon: icons/github.svg; class: svc; top: 120; left: 1000}
+
+cluster: Kubernetes {icon: icons/kubernetes.svg; class: svc; style.stroke-dash: 4; top: 120; left: 1380}
+
+dev -> actions.checks: push to master
+actions.checks -> actions.build: pass
+actions.build -> ghcr: "images\n:sha, :latest"
+ghcr -> cluster: pull {style.stroke-dash: 4}
