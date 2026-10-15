@@ -31,83 +31,58 @@ jobs, carried over Kafka and coordinated by a workflow engine.
 
 ## Architecture
 
-![Architecture](docs/diagrams/architecture.svg)
+<img src="docs/diagrams/architecture.svg" alt="Architecture" width="1000">
 
-Services are grouped by bounded context rather than by runtime shape:
-**Gateway** (`web`, `hermes`) is the only edge the browser talks to,
-**Identity** and **Billing** are single-service domains, **Media** (`media`,
-`content`) owns everything about an upload and what gets generated from it,
-and **Workflow** (`conductor`, `conductor-worker`) owns orchestration and
-execution. All of it runs in one Kubernetes cluster; Kafka, Postgres,
-Redis, and object storage are shared infrastructure the domains depend on,
-not domains themselves. Completion, status, and credit-settlement
-callbacks that flow back from `conductor` and `content` toward `media` and
-`billing` are omitted here for readability — see
-[docs/architecture.md](docs/architecture.md) for the full event sequence.
+The browser only talks to `web`, and `web` only talks to `hermes`. There are
+two paths through the system:
 
-### Request Path
-
-`hermes` is the only service the web app calls. It exposes GraphQL,
-authenticates every request, and calls `identity`, `billing`, `media`, and
-`content` over gRPC. Every downstream call carries a deadline
-(`HERMES_DOWNSTREAM_TIMEOUT`, 5s by default) and propagates tracing
-context.
-
-### Processing Pipeline and Fault Handling
-
-Everything past the upload step runs off that request path. `media` writes
-a processing request and an outbox event in the same transaction, a relay
-publishes it to Kafka, and `conductor` takes it from there. Kafka delivery
-is at-least-once and every command carries an idempotency key, so a
-crashed worker resumes from the last completed step.
-
-Each workflow step moves through the same lifecycle:
-
-![Step lifecycle](docs/diagrams/step-lifecycle.svg)
-
-A retriable failure is redispatched with an incremented attempt, up to
-`CONDUCTOR_MAX_STEP_ATTEMPTS` (3 by default). Once exhausted, the event
-goes to the dead-letter queue, the workflow is marked failed, and
-`billing` releases or refunds the reserved credit. Each `conductor-worker`
-command carries its own timeout (`WORKER_STEP_TIMEOUT_SECONDS`, 600s by
-default).
-
-### Database Ownership
-
-| Service | Owns |
-| --- | --- |
-| `identity` | users, accounts, sessions, roles |
-| `billing` | subscriptions, credit reservations, ledger |
-| `media` | media, upload sessions, processing requests, derivatives |
-| `content` | transcripts, summaries, keywords, keypoints, notes, audio |
-| `conductor` | workflows, steps, dependencies, attempts |
-| `hermes`, `conductor-worker` | none, stateless |
-
-Every stateful service also owns its own outbox/inbox tables: a database
-write and the event announcing it either both commit or neither does.
-
-### Services
+- **Request path (synchronous)**: `hermes` exposes GraphQL and calls
+  `identity`, `billing`, `media`, and `content` over gRPC with a deadline on
+  every call. Used for everything that needs an immediate answer.
+- **Processing path (asynchronous)**: `media` publishes a processing request
+  to Kafka, `conductor` splits it into steps, and `conductor-worker`
+  replicas run each step (Whisper, Gemini, TTS). Results are saved in
+  `content`, and the final outcome flows back to `media` and `billing`.
 
 | Service | Responsibility |
 | --- | --- |
-| **hermes** | Public GraphQL API. Auth context, request limits, aggregates responses from the domain services |
+| **hermes** | Public GraphQL API. Auth, request limits, aggregates responses |
 | **identity** | Users, accounts, sessions |
-| **billing** | Subscriptions, credit reservation/settlement, ledger |
+| **billing** | Subscriptions, credit reservation and settlement |
 | **media** | Uploads, source-media metadata, processing requests |
 | **content** | Transcripts, summaries, keywords, keypoints, notes, summary audio |
-| **conductor** | Workflow orchestration. Dependencies, joins, retries, timeouts |
-| **conductor-worker** | Runs Whisper transcription, Gemini enrichment, and TTS as a Kafka consumer-group pool |
+| **conductor** | Workflow orchestration: dependencies, joins, retries, timeouts |
+| **conductor-worker** | Whisper, Gemini, and TTS execution as a Kafka consumer-group pool |
 
-### Deployment
+## How it works
 
-The same diagram above doubles as the deployment view: GitHub Actions
-currently only builds, lints, and tests (`.github/workflows/ci.yml`); the
-CI/CD path shown is the design it's built toward, not yet wired up in this
-repo. GitHub Actions builds and tests every push, publishes a versioned
-image to GHCR, and on success commits that image tag into `deploy/` in
-this repo. ArgoCD watches that path and reconciles the cluster to match
-it, so a deploy is always a commit landing and ArgoCD syncing it, never a
-manual `kubectl apply`.
+### Upload
+
+The file goes straight from the browser to MinIO, so media bytes
+never pass through the services.
+
+<img src="docs/diagrams/upload.svg" alt="Upload" width="480">
+
+### Processing
+
+Only the steps the user selected run. Transcription goes first because
+every other step reads the transcript.
+
+<img src="docs/diagrams/processing.svg" alt="Processing" width="760">
+
+### Retry and failure
+
+Kafka delivery is at-least-once and every command carries an idempotency
+key, so a crashed worker resumes from the last completed step. Each step
+moves through the same lifecycle:
+
+<img src="docs/diagrams/step-lifecycle.svg" alt="Step lifecycle" width="560">
+
+A retriable failure is redispatched with an incremented attempt, up to
+`CONDUCTOR_MAX_STEP_ATTEMPTS` (3 by default). Once exhausted, the event
+goes to the dead-letter queue, the workflow is marked failed, and `billing`
+releases or refunds the reserved credit. Each `conductor-worker` command has
+its own timeout (`WORKER_STEP_TIMEOUT_SECONDS`, 600s by default).
 
 ## Getting Started
 
