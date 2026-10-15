@@ -160,3 +160,24 @@ Before production rollout:
 - Exercise exhausted retry, DLQ inspection, correction, and replay.
 - Load test representative step durations and revise partition counts from
   measured lag and key distribution.
+
+## Implementation status
+
+As of 2026-10-15:
+
+Topics added after this decision:
+
+| Topic | Key | Producer | Consumer |
+| --- | --- | --- | --- |
+| `mn.identity.account.deletion.requested.v1` | `user_id` | `identity` | `media` |
+| `mn.media.deletion.requested.v1` | `media_id` | `media` | `content`, `conductor` |
+| `mn.content.deletion.completed.v1` | `media_id` | `content` | none yet |
+| `mn.conductor.deletion.completed.v1` | `media_id` | `conductor` | none yet |
+| `mn.media.deletion.completed.v1` | `user_id` | `media` | `identity`, only when `IDENTITY_DELETION_COMPLETION_TOPICS` lists it |
+| `mn.billing.credit.settled.v1` | `user_id` | `billing` | `conductor` (logged only) |
+| `mn.audio.job.requested.v1` | `job_id` | `content` | `conductor-worker` |
+
+`make infra:kafka-topics` provisions the local topics with 3 partitions for
+identity and billing and 6 for media and processing. The DLQ and audio-job
+topics are not in that list; locally they are created by broker auto-create,
+which `docker-compose.yml` enables.

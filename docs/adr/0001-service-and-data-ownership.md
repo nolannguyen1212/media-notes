@@ -150,3 +150,16 @@ Separate ADRs will define:
 - Credit pricing and reservation calculation.
 - Progress delivery through polling, SSE, or GraphQL subscriptions.
 - Data retention and cross-service deletion.
+
+## Implementation status
+
+As of 2026-10-15:
+
+- Service and database boundaries hold: each Go service is its own module
+  with its own database, credentials, and migrations, and no service imports
+  another's `internal` package.
+- There is no shared technical library yet; each service carries its own
+  startup, logging, and health code.
+- OpenTelemetry is not wired in. Services log with `slog`; there are no
+  traces or metrics.
+- CI does not run Buf lint or breaking-change checks (see ADR 0002).

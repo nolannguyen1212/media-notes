@@ -186,3 +186,22 @@ The deletion implementation must include:
 - backup restore testing that proves tombstones are replayed before access;
 - an operational exercise recovering an operation pending for more than
   24 hours without re-exposing partially deleted data.
+
+## Implementation status
+
+As of 2026-10-15:
+
+- Media deletion and account deletion are implemented with durable
+  operations, inbox deduplication, and an identity reconciler that
+  republishes overdue requests.
+- The feature flag and dry-run mode are not implemented; deletion is live.
+- Each owner deletes its own rows and objects, but completion is not joined
+  back yet: `content` and `conductor` publish completion events that no
+  service consumes, and nothing calls `media`'s `RecordCompletion`, so a
+  media deletion operation stays `pending`.
+- `identity` consumes completion events only when
+  `IDENTITY_DELETION_COMPLETION_TOPICS` is set; it is empty by default, so
+  account deletion also stays `deletion_pending`.
+- `billing` does not take part in account deletion.
+- Users first move media to trash (`trashMedia`, `restoreMedia`);
+  `deleteMediaPermanently` starts the deletion flow described here.

@@ -162,3 +162,19 @@ Implementation must include:
 - a load test at the verified deployment limits with dashboards and alerts;
 - a production readiness check recording current provider limits, supported
   TTS contract, cost budget, and rollback configuration.
+
+## Implementation status
+
+As of 2026-10-15:
+
+Most of this decision is not implemented yet:
+
+- There is no aggregate, cross-replica quota reservation in `conductor`.
+  Each worker only bounds itself with per-capability semaphores
+  (`WORKER_MAX_CONCURRENT_*`) and a step timeout
+  (`WORKER_STEP_TIMEOUT_SECONDS`).
+- TTS uses `edge-tts`, which this ADR rejects for production.
+- The LLM layer falls back automatically between Gemini and Hugging Face
+  (`LLM_PROVIDER` picks the primary). This is the silent provider fallback
+  this ADR rejects; it was added to survive provider quota and region
+  blocks.

@@ -167,3 +167,15 @@ Before production rollout:
 - Load test each operation class at its steady and burst limits.
 - Confirm media bytes never appear in GraphQL, gRPC, Kafka, logs, or traces.
 - Exercise Redis failure and provider-throttling behavior.
+
+## Implementation status
+
+As of 2026-10-15:
+
+- Enforced: the 500 MiB declared and stored size, three active upload
+  sessions, 60-minute sessions, 15-minute playback URLs, the MIME allowlist,
+  1–50 IDs per progress request, and Redis-backed per-user rate limits in
+  `hermes` that return 429 with `Retry-After`.
+- Not enforced: the four-hour duration limit. `media` has a `MaxDurationMs`
+  setting, but nothing probes the source file, so `MEDIA_DURATION_EXCEEDED`
+  is never raised.

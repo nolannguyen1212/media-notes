@@ -64,3 +64,15 @@ similar transport context use gRPC metadata and interceptors.
   decisions before the first domain API establishes actual consumers.
 - **Use wire-only breaking checks:** permits source-level changes that are too
   risky for independently deployed internal clients.
+
+## Implementation status
+
+As of 2026-10-15:
+
+- Generation is now configured in `contracts/buf.gen.yaml`: Go stubs
+  (`make proto:generate`) and Python stubs for `conductor-worker`
+  (`make proto:generate-python`), both under `contracts/gen/`.
+- Four packages exist: `media_notes.{identity,billing,media,content}.v1`.
+  `conductor` has no gRPC API; it is driven by Kafka only.
+- `buf lint` runs locally through `make proto:lint`. CI does not run lint or
+  `buf breaking` yet.

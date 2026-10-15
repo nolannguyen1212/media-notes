@@ -187,3 +187,18 @@ Implementation must include:
   enforcement is enabled;
 - an operational reconciliation exercise that repairs missing idempotent
   commands without direct cross-service database access.
+
+## Implementation status
+
+As of 2026-10-15:
+
+- The active catalog is `launch-v2` (billing migration `V3`): `transcribe` 2,
+  `summarize` 2, `extract_keywords` 2, `extract_keypoints` 2,
+  `generate_notes` 5, `generate_audio_summary` 5 credits. The table above is
+  the original `launch-v1` catalog.
+- `hermes` requests a quote only for display. `media` does not store a quote
+  snapshot; `conductor` requests its own quote from `billing` over gRPC when
+  it starts a workflow, then reserves and settles through Kafka commands.
+- Reservation expiry sweeps, operator refunds, and the billing/conductor
+  reconciler are not implemented.
+- Standalone audio jobs are not billed.
