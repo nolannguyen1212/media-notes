@@ -84,6 +84,23 @@ goes to the dead-letter queue, the workflow is marked failed, and `billing`
 releases or refunds the reserved credit. Each `conductor-worker` command has
 its own timeout (`WORKER_STEP_TIMEOUT_SECONDS`, 600s by default).
 
+## Deployment
+
+<img src="docs/diagrams/deploy.svg" alt="Deployment" width="900">
+
+Every push to `master` runs the CI workflow (`.github/workflows/ci.yml`):
+web build, lint, type-check, and tests, then build and tests for every Go
+service. When both pass, it builds and pushes to GHCR, tagged with the commit
+SHA and `latest`:
+
+- one app image per component: `web`, `hermes`, `identity`, `billing`,
+  `media`, `content`, `conductor`, and `conductor-worker`;
+- one migration image for each service that owns a database: `identity`,
+  `billing`, `media`, `content`, and `conductor`.
+
+The Kubernetes manifests and the ArgoCD sync that roll those images out are
+not defined in this repository, so the last step is drawn dashed.
+
 ## Getting Started
 
 ### Installation
