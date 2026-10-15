@@ -137,5 +137,6 @@ involved.
 - Tracing and metrics; services only write structured logs.
 - Aggregate provider quotas ([ADR 0007](adr/0007-provider-quota-and-admission-control.md)).
 - The four-hour source duration limit from ADR 0004.
-- Kubernetes manifests and deployment; CI stops at pushing images to GHCR
+- Automatic releases. CI pushes images to GHCR; deploying them is a manual
+  tag bump in the `k8s-deploy` GitOps repository, which ArgoCD syncs
   ([continuous integration](continuous-integration.md)).

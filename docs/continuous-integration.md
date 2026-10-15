@@ -22,5 +22,7 @@ read-only.
 - Buf lint and breaking-change checks (`make proto:lint` runs locally only).
 - Python worker tests (`make worker:test` runs locally only).
 - Integration tests (`make test:v2-integration`, Docker required).
-- Deployment: the Kubernetes manifests and ArgoCD sync are not in this
-  repository.
+- Deployment. Releases happen in the separate `k8s-deploy` GitOps
+  repository: a commit there bumps the image tags and ArgoCD syncs the
+  cluster (see the root README's Deployment section). CI does not bump the
+  tags.

@@ -105,8 +105,19 @@ SHA and `latest`:
 - one migration image for each service that owns a database: `identity`,
   `billing`, `media`, `content`, and `conductor`.
 
-The Kubernetes manifests and the ArgoCD sync that roll those images out are
-not defined in this repository, so the last step is drawn dashed.
+Deployment is GitOps. The Kubernetes manifests live in a separate repository,
+`k8s-deploy`, and ArgoCD keeps the k3s cluster in sync with it:
+
+- A release is a commit to `k8s-deploy` that bumps the image tags to the new
+  commit SHA.
+- ArgoCD's `root` application (app-of-apps) manages two applications:
+  `common` runs Postgres, Kafka, Redis, and MinIO in the `common` namespace,
+  and `media-notes` runs the eight components in the `media-notes`
+  namespace. Both sync automatically with prune and self-heal.
+- Each release runs the five migration Jobs, named after the commit SHA, in
+  sync wave 0, before the Deployments roll out in wave 1.
+- Traefik serves `medianotes.app.bbmonster.online` (web) and
+  `medianotes.api.bbmonster.online` (hermes and billing's Polar webhook).
 
 ## Getting Started
 
