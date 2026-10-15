@@ -1,94 +1,53 @@
 # Hermes
 
-## Scope
-
-Go GraphQL gateway; owns the public schema, authentication context, request
-limits, batching and response aggregation. It owns no domain records or schema.
+Go GraphQL gateway. It owns the public schema, authentication context,
+request limits, and response aggregation. It owns no database; Redis holds
+only rate-limit counters.
 
 ## Structure
 
 ```text
 cmd/hermes/main.go
-internal/graphql/           # schema, resolvers, input/output mapping
-internal/auth/              # bearer/cookie extraction, identity client
-internal/clients/           # narrow generated gRPC client wrappers
-internal/batching/          # request-scoped loaders
-internal/http/              # GraphQL, health, middleware
-internal/limits/            # body size and rate-limit policy
+internal/app/        config, logging, health
+internal/auth/       session-token extraction and validation through identity
+internal/clients/    gRPC client wrappers for identity, billing, media, content
+internal/graphql/    schema.graphqls, resolvers, gqlgen output
+internal/http/       server and middleware
+internal/limits/     body-size and Redis rate limits (ADR 0004)
 ```
 
-Resolvers never access a database owned by another service. Client wrappers set
-deadlines, attach metadata and map safe downstream errors.
+## API
 
-## Resolver API
+GraphQL at `POST /graphql` (port 8086).
 
-```text
-register, login, logout, me, requestAccountDeletion
-createUploadSession, confirmUpload, updateMedia, requestProcessing
-mediaList, mediaDetail
-contentDetail, processingStatus
-quote, priceCatalog, billingSummary, plans, creditLedgerHistory
-createCheckoutSession, cancelSubscription
-draftAudioScript, generateStandaloneAudio, audioJob, audioJobs
-```
+| Area | Queries | Mutations |
+| --- | --- | --- |
+| Account | `me`, `promptSettings` | `register`, `login`, `logout`, `requestAccountDeletion`, `updatePromptSetting` |
+| Media | `mediaList`, `mediaDetail`, `mediaProgress`, `trashedMedia` | `createUploadSession`, `confirmUpload`, `updateMedia`, `requestProcessing`, `requestThumbnailUpload`, `setThumbnail`, `trashMedia`, `restoreMedia`, `deleteMediaPermanently` |
+| Content | `contentDetail` | — |
+| Audio | `audioJob`, `audioJobs` | `draftAudioScript`, `generateStandaloneAudio` |
+| Billing | `quote`, `priceCatalog`, `billingSummary`, `plans`, `creditPacks`, `creditLedgerHistory` | `createCheckoutSession`, `cancelSubscription` |
 
-Authenticate once per request through Identity. Pass principal, request ID and
-trace context in gRPC metadata. Every read that returns a user-owned resource
-must verify ownership from the owning service response.
+## Behavior
 
-`confirmUpload` takes an optional `audioVoice`, forwarded to media's
-`ConfirmUpload` unchanged; it only affects processing when `options` includes
-`generate_audio_summary`. `mediaList` takes an optional `search`, forwarded to
-media's `ListMedia` as a server-side case-insensitive title substring match —
-never filter an already-fetched page client-side instead.
+- **Authentication:** the session token comes from `Authorization: Bearer`
+  or a cookie and is validated once per request through identity's
+  `ValidateSession`.
+- **Ownership:** any resolver that takes a bare ID (`updateMedia`,
+  `requestProcessing`, `audioJob`, and similar) fetches the resource first and
+  compares its owner to the caller. Owner IDs never come from query input.
+- **Prompt overrides:** `confirmUpload` and `requestProcessing` read the
+  caller's saved prompt settings from identity and forward them to media as
+  `prompt_overrides`, which reach the worker through the workflow.
+- **Deadlines:** every downstream gRPC call gets `HERMES_DOWNSTREAM_TIMEOUT`
+  (5s by default).
+- **Limits:** GraphQL bodies are capped at 1 MiB. Per-user rate limits from
+  ADR 0004 return HTTP 429 with `Retry-After`.
+- **Errors:** gRPC status codes map to safe GraphQL errors; transport details
+  are never returned to the client.
 
-`updateMedia` and `requestProcessing` both take a bare `id`/`mediaId` with no
-session or upload context to scope them, so each resolver fetches the media
-item via `GetMedia` and compares owner before mutating — the same
-ownership-verification pattern `mediaDetail`/`contentDetail` already use, per
-the "never accepted from query input" rule above. `requestProcessing`
-forwards to media's `RequestProcessing`, which rejects with
-`FAILED_PRECONDITION` unless the media item's status is already `COMPLETED`
-or `FAILED` (at most one processing request active per media item at a
-time) — surfaced automatically via the existing gRPC-code-to-GraphQL-error
-mapping, no hermes-specific handling needed.
+## Not implemented
 
-**Media recommendations (planned).** hermes has no ranking or
-recommendation query today. The web client's media-detail "Recommended"
-shelf is a placeholder that pages through the caller's own `mediaList` and
-shuffles it client-side. A real `recommendedMedia` query — likely backed by
-watch/generation history and, eventually, cross-user signals — is future
-work; it is not scheduled yet and has no owning service decided.
-
-**Standalone audio generation.** `draftAudioScript(description, idempotencyKey)`
-and `generateStandaloneAudio(text, voice, idempotencyKey)` create a
-generating `AudioJob` (owned by content, not media — no `media_id`
-involved) and return immediately; poll `audioJob(id)` or list
-`audioJobs(kind, cursor, pageSize)` for the `generating`/`completed`/
-`failed` result. `audioJobs` defaults `kind` to `"audio"` (finished
-artifacts), since `"script"` jobs are an intermediate step the "chat with
-AI" flow polls internally, not something the Audio list shows. Ownership
-is verified by comparing the job's `userId` to the caller, the same
-pattern every other resolver here uses since content carries no auth
-context of its own. See `docs/services/worker.md`'s "Standalone audio
-generation" section for the worker/content side. Not yet wired to
-billing — no quote, no credit reservation.
-
-## Control flow
-
-```text
-HTTP -> body/auth/rate middleware -> resolver
-     -> bounded parallel gRPC reads -> GraphQL response
-```
-
-Keep the GraphQL body limit at 1 MiB. Apply ADR 0004 operation limits, including
-authentication attempts. Batch only independent read calls and only within one
-request. Do not cache domain data without measurements.
-
-## Failure and tests
-
-Use downstream deadlines below the remaining request deadline. A dependency
-failure is surfaced as a safe GraphQL error; never leak transport/internal
-details. Health is operational only. Test auth propagation, authorization,
-per-operation limits, ownership filtering, partial aggregation and cancelled
-requests.
+- Media recommendations. The web "Recommended" shelf shuffles the caller's
+  own `mediaList` client-side.
+- Billing for standalone audio jobs.

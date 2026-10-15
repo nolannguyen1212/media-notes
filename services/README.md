@@ -1,51 +1,38 @@
-# Media Notes 2 Service Boundaries
+# Services
 
-Each service below must be an independently buildable module and deployment
-unit. Local workspace tooling must not turn the modules into one shared
-application.
+Each directory is an independently buildable and deployable service. A
+service never imports another service's code or reads another service's
+database.
 
-## Services
+| Service | Language | Role | Design |
+| --- | --- | --- | --- |
+| `web` | TypeScript, React | Browser app; talks only to `hermes` | — |
+| `hermes` | Go | Public GraphQL gateway | [hermes](../docs/services/hermes.md) |
+| `identity` | Go | Users, sessions, prompt settings, account deletion | [identity](../docs/services/identity.md) |
+| `billing` | Go | Quotes, credit reservation and settlement, Polar checkout | [billing](../docs/services/billing.md) |
+| `media` | Go | Uploads, media metadata, trash, processing requests | [media](../docs/services/media.md) |
+| `content` | Go | Transcripts, generated content, standalone audio jobs | [content](../docs/services/content.md) |
+| `conductor` | Go | Processing workflows: steps, retries, timeouts, joins | [conductor](../docs/services/conductor.md) |
+| `worker` | Python | `conductor-worker`: runs Whisper, LLM, TTS, and thumbnail steps | [worker](../docs/services/worker.md) |
 
-- `hermes`: public GraphQL gateway and response aggregation. Not started.
-- `identity`: users, accounts, and sessions. Implemented: registration,
-  authentication, session issuance/validation/revocation, and the account
-  deletion workflow (outbox publish, inbox consumer, reconciler). See
-  [docs/services/identity.md](../docs/services/identity.md).
-- `billing`: subscriptions, credit reservations, and ledger. Implemented:
-  catalog-backed quotes, credit reservation/settlement/release (outbox,
-  Kafka command consumer, append-only ledger), and Polar purchase webhook
-  handling. See [docs/services/billing.md](../docs/services/billing.md).
-- `media`: uploads, source-media metadata, and processing requests. Not
-  started.
-- `content`: transcripts and generated content. Not started.
-- `conductor`: workflow state, dependencies, joins, retries, and timeouts.
-  Not started.
+## Rules
 
-Every service must expose operational liveness and readiness endpoints:
+- Synchronous calls use the versioned gRPC contracts in `contracts/proto`.
+- Asynchronous communication uses versioned Kafka topics
+  (`mn.<domain>.<event>.v1`).
+- Media bytes and long-form text never travel through Kafka; they stay in
+  MinIO or the owning service's database.
+- Every Go service exposes `GET /health/live` and `GET /health/ready` on its
+  HTTP port.
 
-```text
-GET /health/live
-GET /health/ready
-```
+## Ports
 
-Domain APIs, database connections, and messaging consumers belong inside their
-own service module. A service must not import another service's implementation
-or internal packages, and must not access another service's database.
-
-Synchronous cross-service calls use versioned gRPC contracts. Asynchronous
-communication uses versioned Kafka events. Media bytes and long-form generated
-content remain in object storage and must not pass through Kafka.
-
-Shared libraries are limited to technical infrastructure such as
-observability, messaging envelopes, middleware, configuration, and test
-utilities.
-
-## Implementation acceptance criteria
-
-- Every service builds and tests independently.
-- Ownership, startup, shutdown, cancellation, timeouts, retries, and readiness
-  behavior are explicit.
-- Stateful services use separate credentials, databases, and migration
-  histories.
-- Contracts and events are backward compatible within a version.
-- No service imports another service's implementation or accesses its storage.
+| Service | HTTP | gRPC |
+| --- | --- | --- |
+| `identity` | 8081 | 9091 |
+| `billing` | 8082 | 9093 |
+| `media` | 8083 | 19095 |
+| `content` | 8084 | 9095 |
+| `conductor` | 8085 | — |
+| `hermes` | 8086 (GraphQL at `/graphql`) | — |
+| `web` | 5173 (dev server) | — |

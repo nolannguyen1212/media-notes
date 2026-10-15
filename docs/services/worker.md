@@ -1,87 +1,67 @@
-# Worker
+# Worker (`conductor-worker`)
 
-## Scope
-
-Python Kafka consumer-group pool. It is stateless: executes Whisper, an LLM
-(Gemini or Hugging Face, switchable — `providers/llm.py`), FFmpeg and TTS; it
-owns only bounded local execution. Durable results belong to Media or Content
-service.
-
-## LLM provider
-
-`LLM_PROVIDER` (1=Gemini, 2=Hugging Face; default 2) selects the active
-provider. Every other declared provider is tried as an automatic fallback,
-in order, if the active one raises (network error, quota, a location-based
-block). Swapping providers is a redeploy with one changed env var, no code
-change. See `providers/llm.py` and `main.py`'s `_build_llm_providers`.
+Stateless Python Kafka consumer pool that executes processing steps. It owns
+no database: text results go to content, thumbnails to media, and audio
+bytes to MinIO with their metadata in content.
 
 ## Structure
 
 ```text
-worker/
-  consumer.py        # polling, decode, offset commit
-  dispatch.py        # step-kind routing
-  steps/             # transcribe, summary, keywords, keypoints, notes, audio, thumbnail
-  clients/           # gRPC and object-storage clients
-  providers/         # Whisper/LLM/TTS adapters
-  limits.py          # semaphore, timeout and quota admission
+src/main.py        startup, provider wiring, consumer loop
+src/events.py      topics, consumer group, message decoding
+src/dispatch.py    routes a step command to its handler, classifies failures
+src/handlers/      transcribe, summary, keywords, keypoints, notes,
+                   summary_audio, thumbnail, audio_job
+src/providers/     whisper (faster-whisper), llm, tts (edge-tts), thumbnail (FFmpeg)
+src/clients/       gRPC clients for media and content, MinIO client
+src/limits.py      per-capability semaphores and step timeout
+src/errors.py      retriable and terminal error classes
+tests/
 ```
 
-## Handlers
+## Steps
 
-```text
-handle_transcribe, handle_summary, handle_keywords, handle_keypoints
-handle_notes, handle_summary_audio, handle_thumbnail
-handle_script, handle_audio  # standalone audio jobs — see below
-```
+| Step | Provider | Result written to |
+| --- | --- | --- |
+| `transcribe` | faster-whisper, run locally (`WHISPER_MODEL`, default `base`) | content `StoreTranscript` |
+| `summary`, `keywords`, `keypoints`, `notes` | LLM | content `Store*` |
+| `summary_audio` | edge-tts | MinIO object, then content `StoreSummaryAudioMetadata` |
+| `generate_thumbnail` (video only) | FFmpeg, 320×180 WebP | MinIO object, then media `RegisterDerivative` |
+| standalone `script` / `audio` jobs | LLM / edge-tts | content `CompleteScriptDraft` / `CompleteStandaloneAudio` |
 
-Each handler validates command IDs/attempt, acquires a bounded capability
-semaphore, applies a deadline, reads only required object/content input, invokes
-its provider, then calls the owner service to persist the durable result. Commit
-the Kafka offset only after that call succeeds. On failure emit only classified
-small metadata to `mn.processing.step.failed.v1`.
+LLM steps append the user's prompt override for that option, when one was
+sent with the step command. `summary_audio` uses the command's `voice`,
+falling back to `WORKER_TTS_VOICE`.
 
-`handle_summary_audio` selects a voice by falling back through the command's
-own `voice` field (conductor's workflow-level `audio_voice`, itself sourced
-from the caller's `ConfirmUpload` request) to the pool-wide default in
-`WORKER_TTS_VOICE`. There is no per-provider voice validation beyond what the
-TTS provider itself rejects.
+## Standalone audio flow
 
-Workers never choose another worker, track workflow state, publish a successful
-completion before persistence, or transfer media/text via Kafka. Before commit,
-check authoritative deletion/media state. Test provider timeout, admission
-denial, duplicate command, owner unavailable, late result and cancellation.
+<img src="../diagrams/audio-job.svg" alt="Standalone audio" width="460">
 
-## Standalone audio generation
+## LLM providers
 
-Unlike `handle_summary_audio` (which only ever synthesizes a *derived*
-summary of an existing media item's transcript), the "Audio" feature lets a
-caller paste text directly, or describe what they want and have an LLM
-draft narration text first, then synthesize it — entirely independent of
-any media item, conductor workflow, or media_id.
+`LLM_PROVIDER` picks the primary provider: `1` is Gemini (`GEMINI_MODEL`),
+`2` is Hugging Face (`HF_MODEL`), and `2` is the default. If the primary
+raises, the others are tried in order. ADR 0007 rejects this silent
+fallback; see its implementation status.
 
-- `handle_script` drafts narration text from a loose description via
-  `providers.llm.draft_audio_script` — a plain-prose prompt/response,
-  unlike every other LLM call in this module (no transcript, no JSON
-  structure).
-- `handle_audio` synthesizes text directly to speech via the same
-  `providers/tts.py` edge-tts adapter `handle_summary_audio` uses, uploads
-  the object, and commits its metadata.
-- Both are dispatched from `mn.audio.job.requested.v1` (content's own
-  outbox topic — `content/internal/audiojob` — not conductor's), consumed
-  by the same worker pool on the same consumer group as
-  `mn.processing.step.requested.v1`. On success each calls content's
-  `CompleteScriptDraft`/`CompleteStandaloneAudio` RPC directly; on failure
-  each calls `FailStandaloneAudioJob` directly — there is no
-  `mn.processing.step.failed.v1` equivalent for a job with no workflow to
-  notify.
-- content owns the durable rows (`standalone_audio_jobs`, keyed by
-  `user_id`, not `media_id`) and the hermes GraphQL surface
-  (`draftAudioScript`, `generateStandaloneAudio` mutations;
-  `audioJob`/`audioJobs` queries). Jobs are tracked through the same
-  `generating`/`completed`/`failed` states every other job in this app
-  exposes. The web app's "Audio" nav entry lists them, independent of the
-  media library and its trash.
-- Not yet wired to billing: generating a script or audio job does not
-  reserve or settle credits today, unlike every media-bound processing
-  step.
+## Execution rules
+
+- Consumes `mn.processing.step.requested.v1` and `mn.audio.job.requested.v1`
+  in consumer group `conductor-worker-steps`.
+- Each step takes a per-capability semaphore (`WORKER_MAX_CONCURRENT_WHISPER`
+  1, `_GEMINI` 4, `_TTS` 2, `_THUMBNAIL` 2) and has a deadline of
+  `WORKER_STEP_TIMEOUT_SECONDS` (600s).
+- The Kafka offset is committed only after the owning service accepted the
+  result. The owning service publishes the completion event; the worker
+  never does.
+- A failure is classified as retriable or terminal; unknown errors count as
+  retriable. The worker publishes only the error code and attempt to
+  `mn.processing.step.failed.v1`, and conductor decides whether to retry.
+  Audio jobs report failure directly through `FailStandaloneAudioJob`.
+- No media bytes or long text go through Kafka.
+
+## Not implemented
+
+- Aggregate provider quotas across replicas (ADR 0007); each replica only
+  bounds itself.
+- A production TTS provider; edge-tts has no quota or SLA.

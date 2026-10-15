@@ -1,96 +1,91 @@
 # Media
 
-## Scope
+Go gRPC and Kafka service owning upload sessions, source-media metadata,
+derivatives (thumbnails), processing requests, trash, and media deletion. It
+does not own transcripts, generated content, workflows, or credit.
 
-Go gRPC + Kafka service owning upload sessions, source-media metadata, object
-key inventory, derivative metadata, processing requests and media deletion.
-It does not own transcript/content, workflow attempts or credit balance.
-
-## Structure and data
+## Structure
 
 ```text
-cmd/media/main.go
-internal/upload/ internal/media/ internal/derivative/
-internal/processing/ internal/deletion/
-internal/grpc/ internal/events/ internal/objectstore/ internal/store/
-migrations/
+cmd/api/main.go
+internal/app/          config, logging, health
+internal/upload/       upload sessions and confirmation
+internal/media/        media metadata, listing, trash
+internal/derivative/   thumbnail upload and registration
+internal/processing/   processing requests
+internal/deletion/     deletion operations
+internal/grpc/         gRPC server and error mapping
+internal/events/       outbox relay, consumers, trash purge sweep
+internal/objectstore/  MinIO presigning and object metadata
+internal/store/        PostgreSQL repositories
+migrations/            V1 init … V5 trash
 ```
 
-Tables: media, upload_sessions, derivatives, processing_requests,
-media_deletions, outbox and inbox. Object keys are exact owned metadata, never
-an untrusted prefix.
+## Data
 
-## Methods and contracts
+Database `media`, schema `public`: `media`, `upload_sessions`,
+`processing_requests`, `derivatives`, `media_deletions`, `inbox_events`,
+`outbox_events`.
 
-```text
-CreateUploadSession(ctx, command) -> UploadSession
-ConfirmUpload(ctx, command) -> Media
-GetMedia(ctx, mediaID) -> Media
-ListMedia(ctx, ownerID, cursor, search) -> MediaPage
-SignPlaybackURL(ctx, mediaID) -> SignedURL
-RegisterDerivative(ctx, command) -> Derivative
-ApplyWorkflowStatus(ctx, event) -> void
-RequestDeletion(ctx, mediaID) -> DeletionOperation
-UpdateMedia(ctx, mediaID, title, description) -> Media
-RequestProcessing(ctx, mediaID, idempotencyKey, options, audioVoice) -> Media
-```
+| Migration | Change |
+| --- | --- |
+| `V2` | `media.version`, a monotonic counter for progress polling (ADR 0005) |
+| `V3` | `media.description` |
+| `V4` | drops `processing_requests` unique `media_id`, adds a unique `idempotency_key` |
+| `V5` | `media.trashed_at` |
 
-`contracts/proto/media/v1/media.proto` serves Hermes and worker calls. Create
-checks MIME/declared size, idempotency and three active sessions. Confirmation
-reads authoritative object metadata, rejects missing/empty/oversize/key mismatch
-objects, then atomically creates the processing request and outbox event.
-Confirmation also accepts an optional `audio_voice`, which overrides
-conductor-worker's default TTS voice for this processing request only; it has
-no effect unless `generate_audio_summary` is among the selected options.
-List is cursor-paginated and returns only lightweight fields; playback URL is
-short-lived. List also accepts an optional `search`, a case-insensitive
-substring match against title, applied server-side alongside the owner filter
-before pagination.
+## gRPC API
 
-`UpdateMedia` changes title and/or an optional free-text `description`; an
-unset field is left unchanged. `RequestProcessing` starts a new processing
-request for a media item that already has one — to generate a content type
-that wasn't originally selected, or to regenerate one that was. It is only
-accepted while the media item's status is `completed` or `failed`: at most
-one processing request may be active per media item at a time, enforced by
-locking the media row for the duration of the check-then-write rather than
-by a database constraint (`processing_requests.status` never transitions
-past `requested` in this service, so a status-scoped constraint there would
-not express the invariant). On success it writes a new `processing_requests`
-row (history accumulates; the table has no uniqueness constraint on
-`media_id`) and publishes `mn.media.processing.requested.v1`, exactly as
-`ConfirmUpload` does — conductor requires no changes to consume it.
-Idempotent per caller idempotency key.
+`media_notes.media.v1.MediaService`, used by hermes, conductor, and the
+worker:
+
+- Upload: `CreateUploadSession`, `ConfirmUpload`
+- Read: `GetMedia`, `ListMedia`, `GetMediaProgress`, `SignPlaybackUrl`
+- Edit: `UpdateMedia`, `RequestProcessing`
+- Thumbnails: `RegisterDerivative` (worker), `RequestDerivativeUpload`
+  (a user uploading a custom thumbnail through hermes)
+- Trash and deletion: `TrashMedia`, `RestoreMedia`, `ListTrashedMedia`,
+  `RequestDeletion`, `GetDeletionStatus`
+
+## Behavior
+
+- **Upload:** `CreateUploadSession` checks the MIME type, the declared size
+  (at most 500 MiB), and at most three active sessions per user, then
+  returns a presigned PUT URL. `ConfirmUpload` reads the real object metadata
+  from MinIO, rejects a missing, empty, or oversized object or an expired
+  session, and writes the processing request and its outbox event in one
+  transaction.
+- **Processing again:** `RequestProcessing` starts a new request for media
+  that already finished (`completed` or `failed`), to add or regenerate
+  outputs. Only one request may be active per media item; the media row is
+  locked for the check.
+- **Progress:** `GetMediaProgress` returns status for up to 50 media IDs in
+  one call, for the web's polling (ADR 0005).
+- **Trash:** `TrashMedia` hides an item; `RestoreMedia` brings it back. A
+  sweep permanently deletes items that stay in trash for 30 days.
+- **Deletion:** `RequestDeletion` (the web's "delete permanently", and the
+  trash sweep) deletes media's own rows and objects, then publishes
+  `mn.media.deletion.requested.v1` so content and conductor delete theirs.
+- **Playback:** `SignPlaybackUrl` returns a 15-minute presigned GET URL.
+
+## Deletion flow
+
+<img src="../diagrams/deletion.svg" alt="Deletion" width="560">
 
 ## Events
 
-Publish `mn.media.processing.requested.v1` and
-`mn.media.derivative.ready.v1`, both keyed by `media_id`. Consume
-`mn.media.status.changed.v1`. Deletion hides media immediately, cancels uploads,
-then removes only owned rows and exact object keys after required completions.
+| Direction | Topic |
+| --- | --- |
+| Publishes | `mn.media.processing.requested.v1`, `mn.media.derivative.ready.v1`, `mn.media.deletion.requested.v1`, `mn.media.deletion.completed.v1` |
+| Consumes | `mn.media.status.changed.v1` (workflow status), `mn.identity.account.deletion.requested.v1` |
 
-## Tests
+## Not implemented
 
-Test limits, idempotent upload creation, authoritative confirmation, status
-projection, pagination, signed URL expiry, deletion retries and object-key
-enumeration. Verify no media bytes pass through gRPC, Kafka, logs or traces.
+- The four-hour duration limit. `MaxDurationMs` is configured but nothing
+  probes the source file's duration.
+- Deletion completion from content and conductor is never recorded, so a
+  deletion operation stays `pending` (see ADR 0006).
 
+## Runtime
 
-## Migrations
-
-Flyway-managed (`services/media/migrations/V{n}__*.sql`, manual rollback
-scripts under `services/media/rollback/`), currently:
-
-- `V1__init.sql` — `media`, `upload_sessions`, `processing_requests`,
-  `derivatives`, `media_deletions`, `inbox_events`, `outbox_events`.
-  `processing_requests.media_id` was `UNIQUE`. The application locks the
-  active sessions for one owner while creating a new session, counts them,
-  and rejects a fourth — a partial unique index cannot express this
-  three-session limit by itself.
-- `V2__add_media_progress_version.sql` — `media.version`, a monotonic
-  counter for the `mediaProgress` projection (ADR 0005).
-- `V3__add_media_description.sql` — `media.description`, optional
-  free-text.
-- `V4__loosen_processing_requests_unique.sql` — drops
-  `processing_requests`'s `UNIQUE(media_id)` (see `RequestProcessing`
-  above) and adds `processing_requests.idempotency_key` (nullable, unique).
+HTTP on 8083 (`/health/live`, `/health/ready`), gRPC on 19095.

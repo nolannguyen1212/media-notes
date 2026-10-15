@@ -1,87 +1,80 @@
 # Content
 
-## Scope
+Go gRPC and Kafka service owning transcripts, generated content (summary,
+citations, keywords, keypoints, notes), summary-audio metadata, and
+standalone audio jobs. It does not own uploads or workflow decisions.
 
-Go gRPC + Kafka service owning transcripts, ordered segments, summaries,
-citations, keywords, keypoints, notes, summary-audio metadata/object keys and
-its deletion state. It does not own upload lifecycle or workflow decisions.
-
-It also owns standalone audio jobs (`internal/audiojob`,
-`standalone_audio_jobs` table): the "Audio" feature's script-draft and
-text-to-speech requests, keyed by `user_id` rather than `media_id` — the
-only content-owned data with no relationship to a media item. A job's
-outbox event (`mn.audio.job.requested.v1`) is consumed directly by
-conductor-worker; there is no conductor workflow involved. See
-`docs/services/worker.md`'s "Standalone audio generation" section for the
-worker side and `docs/services/hermes.md`'s for the GraphQL surface.
-
-## Structure and data
+## Structure
 
 ```text
-cmd/content/main.go
-internal/transcript/ internal/generated/ internal/query/ internal/deletion/
-internal/grpc/ internal/events/ internal/store/
-migrations/
+cmd/api/main.go
+internal/app/          config, logging, health
+internal/content/      transcript and generated-content writes and reads
+internal/audiojob/     standalone script-draft and TTS jobs
+internal/deletion/     per-media deletion
+internal/grpc/         gRPC server and error mapping
+internal/events/       outbox relay, deletion consumer
+internal/objectstore/  presigned URLs for audio objects
+internal/store/        PostgreSQL repositories
+migrations/            V1 init, V2 step attempts per workflow, V3 audio jobs
 ```
 
-Tables: transcripts, transcript_segments, summaries, citations, keywords,
-keypoints, notes, summary_audio, content_versions, outbox and inbox. Writes
-deduplicate by workflow/step/idempotency key.
+## Data
 
-## Methods and contracts
+Database `content`, schema `public`: `contents`, `transcript_segments`,
+`summaries`, `summary_sentences`, `summary_citations`, `keywords`,
+`keypoints`, `notes`, `audio_summaries`, `content_step_attempts`,
+`content_deletions`, `standalone_audio_jobs`, `inbox_events`,
+`outbox_events`.
 
-```text
-StoreTranscript(ctx, command) -> ContentVersion
-GetTranscript(ctx, mediaID) -> Transcript
-StoreSummary/Keywords/Keypoints/Notes(ctx, command) -> ContentVersion
-StoreSummaryAudioMetadata(ctx, command) -> ContentVersion
-GetContent(ctx, mediaID) -> Content
-DeleteOwnedAccountData(ctx, deletionID, userID) -> void
-```
+Audio bytes live in MinIO; the database keeps only the object key. A
+`SummaryAudio.url` is signed fresh on every read and never stored.
 
-Create `contracts/proto/content/v1/content.proto`. The worker reads only the
-inputs needed for its step and writes structured results through this service.
-Each successful write commits result + outbox together before
-`mn.processing.step.completed.v1` is published. Events include IDs, output
-kind, durable version and attempt, never text.
+## gRPC API
 
-`SummaryAudio.url` is a short-lived presigned GET URL for `object_key`, signed
-fresh on every `GetContent` read rather than stored — the same pattern media
-uses for `MediaDetail.playback_url`. Only `object_key` is durable; `url` must
-never be persisted or cached past one response.
+`media_notes.content.v1.ContentService`:
 
-Writes deduplicate by `(content_id, step, workflow_id)`, not just
-`(content_id, step)`: a rejected write (`attempt` lower than the last
-recorded one for that key) is a genuine out-of-order-delivery guard *within*
-one workflow, not a cross-workflow one. Scoping by `workflow_id` matters for
-regenerate — media's `RequestProcessing` starts a brand new workflow whose
-own step attempts count from 1 again, which would otherwise compare as
-stale against a prior, unrelated workflow's higher attempt count for the
-same step (if that step needed a retry the first time). Each workflow's
-write still upserts/replaces that step's content (`ON CONFLICT` for
-single-instance types, delete-then-reinsert for list types like keywords),
-so a regenerate replaces rather than duplicates.
+- Worker writes: `StoreTranscript`, `StoreSummary`, `StoreKeywords`,
+  `StoreKeypoints`, `StoreNotes`, `StoreSummaryAudioMetadata`
+- Reads: `GetTranscript` (worker), `GetContent` (hermes)
+- Audio jobs from hermes: `RequestScriptDraft`, `RequestStandaloneAudio`,
+  `GetStandaloneAudioJob`, `ListStandaloneAudioJobs`
+- Audio jobs from the worker: `CompleteScriptDraft`, `CompleteStandaloneAudio`,
+  `FailStandaloneAudioJob`
 
-## Tests
+## Behavior
 
-Test segment ordering, citations referencing valid segments, idempotent writes,
-stale attempts, durable-before-completion ordering, deletion and read ownership.
+- **Durable before completion:** each `Store*` call commits the result and
+  its `mn.processing.step.completed.v1` outbox event in one transaction, so
+  conductor never sees a step complete before its output exists.
+- **Duplicates and stale attempts:** writes are deduplicated per
+  `(content_id, step, workflow_id)`. A write with an older attempt than the
+  last one recorded is rejected. Scoping by workflow lets a new processing
+  request for the same media start again from attempt 1.
+- **Regenerate:** a new workflow's write replaces that step's content rather
+  than adding to it.
+- **Standalone audio:** a user pastes text, or describes what they want and
+  an LLM drafts the script, then TTS synthesizes it. Jobs are keyed by
+  `user_id` with no media item or conductor workflow. Content publishes
+  `mn.audio.job.requested.v1`, the worker runs the job, then calls
+  `Complete*` or `FailStandaloneAudioJob` directly. Job status is
+  `generating`, `completed`, or `failed`.
 
+## Standalone audio flow
 
-## Migrations
+<img src="../diagrams/audio-job.svg" alt="Standalone audio" width="460">
 
-Flyway-managed (`services/content/migrations/V{n}__*.sql`, manual rollback
-scripts under `services/content/rollback/`), currently:
+## Events
 
-- `V1__init.sql` — `contents`, `transcript_segments`, `summaries`,
-  `keywords`, `keypoints`, `notes`, `summary_sentences`,
-  `summary_citations`, `audio_summaries`, `content_step_attempts`,
-  `content_deletions`, `inbox_events`, `outbox_events`, all in the `public`
-  schema. `content_step_attempts` originally had primary key
-  `(content_id, step)`.
-- `V2__scope_step_attempts_by_workflow.sql` — adds
-  `content_step_attempts.workflow_id` and changes its primary key to
-  `(content_id, step, workflow_id)`, per the write-deduplication note
-  above. Wipes the table first (a disposable idempotency ledger, not user
-  content, and content has no access to conductor's workflow history to
-  backfill it — reaching across that boundary would violate ADR 0001).
+| Direction | Topic |
+| --- | --- |
+| Publishes | `mn.processing.step.completed.v1`, `mn.audio.job.requested.v1`, `mn.content.deletion.completed.v1` (no consumer yet) |
+| Consumes | `mn.media.deletion.requested.v1` |
+
+## Not implemented
+
+- Billing for standalone audio jobs.
+
+## Runtime
+
+HTTP on 8084 (`/health/live`, `/health/ready`), gRPC on 9095.
