@@ -138,7 +138,7 @@ correlation ID, workflow ID, and attempt without logging full payloads.
 
 - **One topic for every step type:** enables capability-specific scaling but
   adds routing, provisioning, and consumer deployments before measurements show
-  that Whisper, Gemini, and TTS need separate pools.
+  that Whisper, LLM, and TTS need separate pools.
 - **One topic for every domain:** mixes commands and events with different
   schemas, owners, retention needs, and consumers.
 - **Key all workflow records by `workflow_id`:** weakens the required ordering

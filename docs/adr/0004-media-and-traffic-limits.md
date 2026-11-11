@@ -85,7 +85,7 @@ rate-limit counter. Retries with the same idempotency key return the existing
 result and do not consume another logical mutation.
 
 Provider concurrency is controlled separately from request rate. Workers do
-not start more Whisper, Gemini, or TTS calls than the configured provider and
+not start more Whisper, LLM, or TTS calls than the configured provider and
 compute semaphores allow. Kafka lag absorbs admitted asynchronous work; it does
 not bypass account entitlement, credit reservation, or provider quotas.
 
