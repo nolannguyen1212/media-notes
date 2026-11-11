@@ -4,7 +4,9 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
+	"strings"
 
 	"github.com/nolannguyen1212/media-notes/services/hermes/internal/limits"
 )
@@ -38,17 +40,44 @@ func corsMiddleware(allowedOrigin string) func(http.Handler) http.Handler {
 // clientIPMiddleware attaches the caller's IP to the request context, for
 // rate-limit keys on pre-authentication operations that have no user id
 // yet (register, login).
-func clientIPMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(limits.ContextWithClientIP(r.Context(), clientIP(r))))
-	})
+func clientIPMiddleware(trusted []netip.Prefix) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(limits.ContextWithClientIP(r.Context(), clientIP(r, trusted))))
+		})
+	}
 }
 
-func clientIP(r *http.Request) string {
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
+func clientIP(r *http.Request, trusted []netip.Prefix) string {
+	remote := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(remote); err == nil {
+		remote = host
 	}
-	return r.RemoteAddr
+	peer, err := netip.ParseAddr(remote)
+	if err != nil || !isTrusted(peer, trusted) {
+		return remote
+	}
+	hops := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+		if err != nil {
+			return remote
+		}
+		if !isTrusted(hop, trusted) {
+			return hop.Unmap().String()
+		}
+	}
+	return remote
+}
+
+func isTrusted(addr netip.Addr, trusted []netip.Prefix) bool {
+	addr = addr.Unmap()
+	for _, prefix := range trusted {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 // rateLimitSignalMiddleware attaches a limits.Signal to the request

@@ -4,8 +4,10 @@ package app
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +36,11 @@ type Config struct {
 	// CORS header injection entirely — a same-origin deployment (the
 	// local dev proxy) needs no CORS headers at all.
 	CORSAllowedOrigin string
+
+	// TrustedProxies are the networks whose X-Forwarded-For header hermes
+	// believes when choosing the client IP for rate-limit keys. Empty
+	// means the TCP peer address is always used.
+	TrustedProxies []netip.Prefix
 
 	// GraphQLBodyLimitBytes bounds request body size, per ADR 0004 (1 MiB).
 	GraphQLBodyLimitBytes int64
@@ -77,6 +84,17 @@ func LoadConfig() (Config, error) {
 			return Config{}, fmt.Errorf("HERMES_GRAPHQL_BODY_LIMIT_BYTES: %w", err)
 		}
 		cfg.GraphQLBodyLimitBytes = n
+	}
+
+	for _, v := range strings.Split(os.Getenv("HERMES_TRUSTED_PROXY_CIDRS"), ",") {
+		if v = strings.TrimSpace(v); v == "" {
+			continue
+		}
+		prefix, err := netip.ParsePrefix(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("HERMES_TRUSTED_PROXY_CIDRS: %w", err)
+		}
+		cfg.TrustedProxies = append(cfg.TrustedProxies, prefix)
 	}
 
 	if v := os.Getenv("HERMES_DOWNSTREAM_TIMEOUT"); v != "" {
