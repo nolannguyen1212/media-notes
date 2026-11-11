@@ -1,0 +1,24 @@
+name: content
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/content/**
+      - contracts/gen/go/**
+      - .github/workflows/content.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-content
+      dockerfile: services/content/content.dockerfile
+      migrate-dockerfile: services/content/content-migrate.dockerfile
+    secrets: inherit

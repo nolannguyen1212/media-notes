@@ -1,0 +1,24 @@
+name: billing
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/billing/**
+      - contracts/gen/go/**
+      - .github/workflows/billing.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-billing
+      dockerfile: services/billing/billing.dockerfile
+      migrate-dockerfile: services/billing/billing-migrate.dockerfile
+    secrets: inherit

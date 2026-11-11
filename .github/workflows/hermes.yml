@@ -1,0 +1,23 @@
+name: hermes
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/hermes/**
+      - contracts/gen/go/**
+      - .github/workflows/hermes.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-hermes
+      dockerfile: services/hermes/hermes.dockerfile
+    secrets: inherit

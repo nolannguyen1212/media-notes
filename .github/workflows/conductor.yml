@@ -1,0 +1,24 @@
+name: conductor
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/conductor/**
+      - contracts/gen/go/**
+      - .github/workflows/conductor.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-conductor
+      dockerfile: services/conductor/conductor.dockerfile
+      migrate-dockerfile: services/conductor/conductor-migrate.dockerfile
+    secrets: inherit

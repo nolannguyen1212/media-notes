@@ -1,0 +1,23 @@
+name: worker
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/worker/**
+      - contracts/gen/python/**
+      - .github/workflows/worker.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-conductor-worker
+      dockerfile: services/worker/worker.dockerfile
+    secrets: inherit
