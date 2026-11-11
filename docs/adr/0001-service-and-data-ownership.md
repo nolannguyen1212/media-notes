@@ -26,7 +26,7 @@ Media Notes uses the following application-service boundaries:
 | `media` | Upload sessions, source-media metadata, processing requests, media derivatives | Transcripts, generated content, workflow attempts, or credit balances |
 | `content` | Transcripts, transcript segments, summaries, citations, keywords, keypoints, notes, summary-audio metadata | Source-media lifecycle, workflow decisions, or billing |
 | `conductor` | Workflows, steps, dependencies, attempts, retry decisions, timeouts, and joins | AI execution, media bytes, generated content, or credit ledger entries |
-| `conductor-worker` | Stateless execution of Whisper, Gemini, FFmpeg, and TTS commands | Durable workflow or domain state |
+| `conductor-worker` | Stateless execution of Whisper, LLM, FFmpeg, and TTS commands | Durable workflow or domain state |
 
 Kafka, PostgreSQL, MinIO/S3, Redis, and OpenTelemetry are infrastructure rather
 than application services.

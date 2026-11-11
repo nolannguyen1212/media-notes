@@ -48,7 +48,7 @@ two paths through the system:
   every call. Used for everything that needs an immediate answer.
 - **Processing path (asynchronous)**: `media` publishes a processing request
   to Kafka, `conductor` splits it into steps, and `conductor-worker`
-  replicas run each step (Whisper, Gemini, TTS). Results are saved in
+  replicas run each step (Whisper, LLM, TTS). Results are saved in
   `content`, and the final outcome flows back to `media` and `billing`.
 
 | Service | Responsibility |
@@ -59,7 +59,7 @@ two paths through the system:
 | **media** | Uploads, source-media metadata, processing requests |
 | **content** | Transcripts, summaries, keywords, keypoints, notes, summary audio |
 | **conductor** | Workflow orchestration: dependencies, joins, retries, timeouts |
-| **conductor-worker** | Whisper, Gemini, and TTS execution as a Kafka consumer-group pool |
+| **conductor-worker** | Whisper, LLM, and TTS execution as a Kafka consumer-group pool |
 
 ## How it works
 

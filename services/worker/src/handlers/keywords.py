@@ -1,4 +1,4 @@
-"""handle_keywords: reads the committed transcript, runs Gemini, replaces
+"""handle_keywords: reads the committed transcript, runs the LLM, replaces
 the stored keyword set through content.
 """
 

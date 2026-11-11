@@ -1,4 +1,4 @@
-"""handle_summary: reads the committed transcript, runs Gemini, commits a
+"""handle_summary: reads the committed transcript, runs the LLM, commits a
 structured summary through content.
 """
 

@@ -39,17 +39,17 @@ falling back to `WORKER_TTS_VOICE`.
 
 ## LLM providers
 
-`LLM_PROVIDER` picks the primary provider: `1` is Gemini (`GEMINI_MODEL`),
-`2` is Hugging Face (`HF_MODEL`), and `2` is the default. If the primary
-raises, the others are tried in order. ADR 0007 rejects this silent
-fallback; see its implementation status.
+The LLM provider is OpenRouter. It tries each model in `OPENROUTER_MODELS`
+(comma-separated free models) in order and moves to the next on any error,
+such as a 429 or an empty response. ADR 0007 rejects this silent fallback;
+see its implementation status.
 
 ## Execution rules
 
 - Consumes `mn.processing.step.requested.v1` and `mn.audio.job.requested.v1`
   in consumer group `conductor-worker-steps`.
 - Each step takes a per-capability semaphore (`WORKER_MAX_CONCURRENT_WHISPER`
-  1, `_GEMINI` 4, `_TTS` 2, `_THUMBNAIL` 2) and has a deadline of
+  1, `_LLM` 4, `_TTS` 2, `_THUMBNAIL` 2) and has a deadline of
   `WORKER_STEP_TIMEOUT_SECONDS` (600s).
 - The Kafka offset is committed only after the owning service accepted the
   result. The owning service publishes the completion event; the worker

@@ -11,7 +11,6 @@ import logging
 import signal
 
 from dotenv import load_dotenv
-from google import genai
 from openai import OpenAI
 
 import dispatch
@@ -29,8 +28,6 @@ logger = logging.getLogger(__name__)
 
 _running = True
 
-_LLM_PROVIDER_NAMES = ["gemini", "huggingface"]
-
 
 def _handle_sigterm(signum: int, frame: object) -> None:
     global _running
@@ -38,43 +35,31 @@ def _handle_sigterm(signum: int, frame: object) -> None:
     _running = False
 
 
-class _GeminiAdapter:
-    def __init__(self, client: genai.Client, model: str) -> None:
+class _RotatingAdapter:
+    def __init__(self, client: OpenAI, models: list[str]) -> None:
         self._client = client
-        self._model = model
+        self._models = models
 
     def generate(self, prompt: str) -> str:
-        response = self._client.models.generate_content(model=self._model, contents=prompt)
-        return response.text or ""
-
-
-class _OpenAICompatAdapter:
-    def __init__(self, client: OpenAI, model: str) -> None:
-        self._client = client
-        self._model = model
-
-    def generate(self, prompt: str) -> str:
-        response = self._client.chat.completions.create(
-            model=self._model, messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content or ""
+        last_error: Exception | None = None
+        for model in self._models:
+            try:
+                response = self._client.chat.completions.create(
+                    model=model, messages=[{"role": "user", "content": prompt}],
+                )
+                text = response.choices[0].message.content
+                if not text or not text.strip():
+                    raise ValueError("empty response")
+                return text
+            except Exception as e:  # noqa: BLE001
+                logger.warning("openrouter model %s failed, trying next: %s", model, e)
+                last_error = e
+        raise RuntimeError(f"all openrouter models failed: {last_error}")
 
 
 def _build_llm_providers(cfg: Config) -> list[tuple[str, llm.Adapter]]:
-    adapters: dict[str, llm.Adapter] = {
-        "gemini": _GeminiAdapter(genai.Client(api_key=cfg.google_api_key), cfg.gemini_model),
-        "huggingface": _OpenAICompatAdapter(
-            OpenAI(base_url="https://router.huggingface.co/v1", api_key=cfg.hf_token), cfg.hf_model,
-        ),
-    }
-    primary = _LLM_PROVIDER_NAMES[cfg.llm_provider - 1]
-    ordered = [primary, *[name for name in _LLM_PROVIDER_NAMES if name != primary]]
-    return [(name, adapters[name]) for name in ordered]
-
-
-def _primary_llm_model(cfg: Config) -> str:
-    primary = _LLM_PROVIDER_NAMES[cfg.llm_provider - 1]
-    return cfg.gemini_model if primary == "gemini" else cfg.hf_model
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=cfg.openrouter_api_key)
+    return [("openrouter", _RotatingAdapter(client, cfg.openrouter_models))]
 
 
 def main() -> None:
@@ -101,7 +86,7 @@ def main() -> None:
     )
     deps = Deps(
         media=media_client, content=content_client, objects=object_store,
-        limits=build_limits(cfg), llm_model=_primary_llm_model(cfg), tts_voice=cfg.tts_voice,
+        limits=build_limits(cfg), llm_model=cfg.openrouter_models[0], tts_voice=cfg.tts_voice,
     )
 
     consumer = events.new_consumer(cfg.kafka_brokers)

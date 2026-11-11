@@ -7,17 +7,17 @@
 
 ## Context
 
-Gemini enrichment and text-to-speech are externally limited resources.
+LLM enrichment and text-to-speech are externally limited resources.
 Increasing Kafka partitions or worker replicas must not allow aggregate calls
 to exceed a provider project's quota.
 
-The Gemini Developer API evaluates requests per minute, input tokens per
-minute, and requests per day per project rather than per API key. Limits vary
-by model, usage tier, billing history, and account status. Google directs
-deployments to view active limits in AI Studio and states that listed capacity
-is not guaranteed:
+OpenRouter applies rate limits per model and per account, not per API key.
+Free models have lower request-per-minute and request-per-day limits than paid
+models, depend on shared upstream capacity, and can return `429` or an empty
+response at any time. Limits vary by model and account credit balance, and
+listed capacity is not guaranteed:
 
-- <https://ai.google.dev/gemini-api/docs/rate-limits>
+- <https://openrouter.ai/docs/api-reference/limits>
 
 Local development and tests use `edge-tts`, a third-party Python client for
 Microsoft Edge's online TTS service without an API key:
@@ -34,9 +34,9 @@ Provider capacity is deployment configuration backed by verified provider
 account limits. Media Notes does not encode public documentation values as
 guaranteed quota.
 
-### Gemini
+### LLM (OpenRouter)
 
-Each deployment records, per provider project and model:
+Each deployment records, per account and model:
 
 - requests per minute;
 - input tokens per minute;
@@ -46,13 +46,13 @@ Each deployment records, per provider project and model:
 - model context and output bounds;
 - cost budget and alert thresholds.
 
-Production enablement requires copying the active project limits from AI
-Studio, recording the verification timestamp, and setting operational limits
-no higher than 80% of the lowest applicable provider limit. Preview model IDs
-are not production defaults.
+Production enablement requires copying the active account limits from the
+OpenRouter dashboard, recording the verification timestamp, and setting operational limits
+no higher than 80% of the lowest applicable provider limit. Free and preview model
+IDs are not production defaults.
 
 `conductor` owns durable admission because it owns step scheduling. Before
-publishing a Gemini step, it reserves bounded request and estimated-input-token
+publishing an LLM step, it reserves bounded request and estimated-input-token
 capacity in its own schema. Reservations use a database transaction and
 expire after a configured timeout. The estimate includes the complete prompt
 and transcript; requests that exceed the model or deployment input bound fail
@@ -67,7 +67,7 @@ successful result, terminal error, cancellation, or timeout releases
 concurrency. Minute and daily usage remain in their bounded windows until
 expiry.
 
-Provider `429 RESOURCE_EXHAUSTED` responses are normalized as retriable step
+Provider `429` responses are normalized as retriable step
 failures and honor `Retry-After` when present. `conductor`, not the worker,
 persists the retry time and applies bounded exponential backoff with jitter.
 Authentication, invalid request, safety rejection, and unsupported model
@@ -144,7 +144,7 @@ not bypass admission. TTS cannot be enabled in production while only
 | Limit only each worker replica | Aggregate calls grow whenever replicas scale |
 | Use Kafka partition count as quota | Partitions bound consumers, not RPM, tokens, daily usage, or retries |
 | Retry `429` immediately in workers | Creates retry storms and splits retry ownership from `conductor` |
-| Hard-code published Gemini limits | Active limits vary by project and tier and are not guaranteed |
+| Hard-code published OpenRouter limits | Active limits vary by model and account and are not guaranteed |
 | Use `edge-tts` in production | No authenticated project quota, SLA, or supported capacity path |
 | Silently fall back between providers | Changes output and policy without a durable workflow decision |
 
@@ -174,7 +174,6 @@ Most of this decision is not implemented yet:
   (`WORKER_MAX_CONCURRENT_*`) and a step timeout
   (`WORKER_STEP_TIMEOUT_SECONDS`).
 - TTS uses `edge-tts`, which this ADR rejects for production.
-- The LLM layer falls back automatically between Gemini and Hugging Face
-  (`LLM_PROVIDER` picks the primary). This is the silent provider fallback
-  this ADR rejects; it was added to survive provider quota and region
-  blocks.
+- The LLM layer rotates automatically across the free OpenRouter models in
+  `OPENROUTER_MODELS`. This is the silent provider fallback this ADR
+  rejects; it was added to survive free-model rate limits.

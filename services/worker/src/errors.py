@@ -15,7 +15,7 @@ from limits import CapacityUnavailable
 class StepError(Exception):
     """Base for a step handler's own classified failure. A provider
     adapter or step handler raises this directly when it already knows
-    the right classification (e.g. a safety-filtered Gemini response is
+    the right classification (e.g. a safety-filtered LLM response is
     terminal, not retriable)."""
 
     def __init__(self, error_code: str, retriable: bool, message: str = "") -> None:
