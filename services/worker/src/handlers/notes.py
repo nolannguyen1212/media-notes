@@ -1,4 +1,4 @@
-"""handle_notes: reads the committed transcript, runs Gemini, commits one
+"""handle_notes: reads the committed transcript, runs the LLM, commits one
 Markdown note document through content.
 """
 

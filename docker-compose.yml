@@ -322,7 +322,7 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # conductor-worker: the Python executor pool (Whisper/Gemini/TTS/FFmpeg)
+  # conductor-worker: the Python executor pool (Whisper/LLM/TTS/FFmpeg)
   # described in docs/services/worker.md, built from services/worker/.
   conductor-worker:
     build:

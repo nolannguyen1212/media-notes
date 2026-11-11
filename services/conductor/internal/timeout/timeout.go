@@ -11,7 +11,7 @@ import (
 
 // deadlines gives every step type a generous ceiling for its slowest
 // realistic provider call (Whisper transcription of a long recording,
-// Gemini enrichment, TTS synthesis, FFmpeg frame extraction) plus queueing
+// LLM enrichment, TTS synthesis, FFmpeg frame extraction) plus queueing
 // time under load. These are launch defaults, not measured SLOs — ADR 0007
 // leaves per-provider timeout tuning to worker-side local limits; this is
 // conductor's outer bound for detecting a step that will never report

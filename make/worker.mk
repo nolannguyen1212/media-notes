@@ -1,4 +1,4 @@
-# conductor-worker: the stateless Python executor pool (Whisper, Gemini,
+# conductor-worker: the stateless Python executor pool (Whisper, LLM,
 # TTS, FFmpeg). See services/worker/ and docs/services/worker.md. Not a Go
 # service, so it isn't picked up by make/v2.mk's build:v2/test:v2 loops
 # and gets its own targets here, using uv for dependency management.

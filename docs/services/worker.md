@@ -49,7 +49,7 @@ see its implementation status.
 - Consumes `mn.processing.step.requested.v1` and `mn.audio.job.requested.v1`
   in consumer group `conductor-worker-steps`.
 - Each step takes a per-capability semaphore (`WORKER_MAX_CONCURRENT_WHISPER`
-  1, `_GEMINI` 4, `_TTS` 2, `_THUMBNAIL` 2) and has a deadline of
+  1, `_LLM` 4, `_TTS` 2, `_THUMBNAIL` 2) and has a deadline of
   `WORKER_STEP_TIMEOUT_SECONDS` (600s).
 - The Kafka offset is committed only after the owning service accepted the
   result. The owning service publishes the completion event; the worker

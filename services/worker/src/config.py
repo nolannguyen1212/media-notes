@@ -33,7 +33,7 @@ class Config:
     # reservation is conductor's job, not implemented yet — this is only
     # this process's local limit.
     max_concurrent_whisper: int
-    max_concurrent_gemini: int
+    max_concurrent_llm: int
     max_concurrent_tts: int
     max_concurrent_thumbnail: int
 
@@ -61,7 +61,7 @@ def load_config() -> Config:
         whisper_model=os.environ.get("WHISPER_MODEL", "base"),
         tts_voice=os.environ.get("WORKER_TTS_VOICE", "en-US-AriaNeural"),
         max_concurrent_whisper=int(os.environ.get("WORKER_MAX_CONCURRENT_WHISPER", "1")),
-        max_concurrent_gemini=int(os.environ.get("WORKER_MAX_CONCURRENT_GEMINI", "4")),
+        max_concurrent_llm=int(os.environ.get("WORKER_MAX_CONCURRENT_LLM", "4")),
         max_concurrent_tts=int(os.environ.get("WORKER_MAX_CONCURRENT_TTS", "2")),
         max_concurrent_thumbnail=int(os.environ.get("WORKER_MAX_CONCURRENT_THUMBNAIL", "2")),
         step_timeout_seconds=int(os.environ.get("WORKER_STEP_TIMEOUT_SECONDS", "600")),

@@ -1,4 +1,4 @@
-"""handle_keypoints: reads the committed transcript, runs Gemini, replaces
+"""handle_keypoints: reads the committed transcript, runs the LLM, replaces
 the stored keypoint set through content.
 """
 
