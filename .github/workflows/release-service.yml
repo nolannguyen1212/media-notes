@@ -1,0 +1,95 @@
+name: Release service
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        type: string
+        required: true
+      dockerfile:
+        type: string
+        required: true
+      migrate-dockerfile:
+        type: string
+        default: ""
+    secrets:
+      K8S_DEPLOY_TOKEN:
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          push: true
+          build-args: |
+            VITE_HERMES_URL=${{ vars.VITE_HERMES_URL }}
+          cache-from: type=gha,scope=${{ inputs.image }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image }}
+          tags: |
+            ghcr.io/nolannguyen1212/${{ inputs.image }}:${{ github.sha }}
+            ghcr.io/nolannguyen1212/${{ inputs.image }}:latest
+
+      - if: inputs.migrate-dockerfile != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ inputs.migrate-dockerfile }}
+          push: true
+          cache-from: type=gha,scope=${{ inputs.image }}-migrate
+          cache-to: type=gha,mode=max,scope=${{ inputs.image }}-migrate
+          tags: |
+            ghcr.io/nolannguyen1212/${{ inputs.image }}-migrate:${{ github.sha }}
+            ghcr.io/nolannguyen1212/${{ inputs.image }}-migrate:latest
+
+  bump:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: nolannguyen1212/k8s-deploy
+          token: ${{ secrets.K8S_DEPLOY_TOKEN }}
+
+      - name: Bump image tags
+        env:
+          IMAGE: ${{ inputs.image }}
+          MIGRATE: ${{ inputs.migrate-dockerfile }}
+        run: |
+          sed -i -E "s#(ghcr.io/nolannguyen1212/$IMAGE(-migrate)?:)[0-9a-f]+#\1$GITHUB_SHA#" $(grep -rlE "ghcr.io/nolannguyen1212/$IMAGE(-migrate)?:" apps)
+          if [ -n "$MIGRATE" ]; then
+            sed -i -E "s#(name: [a-z]+-migrate-)[0-9a-f]+#\1$GITHUB_SHA#" "apps/media-notes/${IMAGE#media-notes-}/job.yaml"
+          fi
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ secrets.K8S_DEPLOY_TOKEN }}
+          IMAGE: ${{ inputs.image }}
+        run: |
+          short=${GITHUB_SHA::7}
+          branch=bump/$IMAGE-$short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "chore(media-notes): bump $IMAGE to $short"
+          git push origin "$branch"
+          gh pr create --base master --head "$branch" \
+            --title "chore(media-notes): bump $IMAGE to $short" \
+            --body "Bumps $IMAGE to ${GITHUB_SHA} from ${GITHUB_REPOSITORY}@${short}."

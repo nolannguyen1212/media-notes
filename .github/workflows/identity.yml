@@ -1,0 +1,24 @@
+name: identity
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/identity/**
+      - contracts/gen/go/**
+      - .github/workflows/identity.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-identity
+      dockerfile: services/identity/identity.dockerfile
+      migrate-dockerfile: services/identity/identity-migrate.dockerfile
+    secrets: inherit

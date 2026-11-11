@@ -97,8 +97,8 @@ its own timeout (`WORKER_STEP_TIMEOUT_SECONDS`, 600s by default).
 
 Every push to `master` runs the CI workflow (`.github/workflows/ci.yml`):
 web build, lint, type-check, and tests, then build and tests for every Go
-service. When both pass, it builds and pushes to GHCR, tagged with the commit
-SHA and `latest`:
+service. Each service also has its own workflow that runs when its files
+change and pushes to GHCR, tagged with the commit SHA and `latest`:
 
 - one app image per component: `web`, `hermes`, `identity`, `billing`,
   `media`, `content`, `conductor`, and `conductor-worker`;
@@ -108,8 +108,9 @@ SHA and `latest`:
 Deployment is GitOps. The Kubernetes manifests live in a separate repository,
 `k8s-deploy`, and ArgoCD keeps the k3s cluster in sync with it:
 
-- A release is a commit to `k8s-deploy` that bumps the image tags to the new
-  commit SHA.
+- The workflow of each changed service opens a pull request in `k8s-deploy`
+  that bumps its image tags to the new commit SHA. Merging that pull request
+  is the release.
 - ArgoCD's `root` application (app-of-apps) manages two applications:
   `common` runs Postgres, Kafka, Redis, and MinIO in the `common` namespace,
   and `media-notes` runs the eight components in the `media-notes`

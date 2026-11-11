@@ -1,0 +1,24 @@
+name: media
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - services/media/**
+      - contracts/gen/go/**
+      - .github/workflows/media.yml
+      - .github/workflows/release-service.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/release-service.yml
+    with:
+      image: media-notes-media
+      dockerfile: services/media/media.dockerfile
+      migrate-dockerfile: services/media/media-migrate.dockerfile
+    secrets: inherit
