@@ -340,8 +340,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_USE_SSL: "false"
       MINIO_MEDIA_BUCKET: media
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       WHISPER_MODEL: ${WHISPER_MODEL:-base}
       WORKER_TTS_VOICE: en-US-AriaNeural
       LOG_LEVEL: info

@@ -39,10 +39,10 @@ falling back to `WORKER_TTS_VOICE`.
 
 ## LLM providers
 
-`LLM_PROVIDER` picks the primary provider: `1` is Gemini (`GEMINI_MODEL`),
-`2` is Hugging Face (`HF_MODEL`), and `2` is the default. If the primary
-raises, the others are tried in order. ADR 0007 rejects this silent
-fallback; see its implementation status.
+The LLM provider is OpenRouter. It tries each model in `OPENROUTER_MODELS`
+(comma-separated free models) in order and moves to the next on any error,
+such as a 429 or an empty response. ADR 0007 rejects this silent fallback;
+see its implementation status.
 
 ## Execution rules
 
