@@ -42,7 +42,11 @@ GraphQL at `POST /graphql` (port 8086).
 - **Deadlines:** every downstream gRPC call gets `HERMES_DOWNSTREAM_TIMEOUT`
   (5s by default).
 - **Limits:** GraphQL bodies are capped at 1 MiB. Per-user rate limits from
-  ADR 0004 return HTTP 429 with `Retry-After`.
+  ADR 0004 return HTTP 429 with `Retry-After`. Login and register are limited
+  per client IP and per account. Behind a proxy, set
+  `HERMES_TRUSTED_PROXY_CIDRS` (for example the cluster pod network) so the
+  client IP comes from `X-Forwarded-For`. Without it every request shares the
+  proxy's IP and one bucket.
 - **Errors:** gRPC status codes map to safe GraphQL errors; transport details
   are never returned to the client.
 

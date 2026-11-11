@@ -30,7 +30,7 @@ func NewMux(cfg app.Config, resolver *graphqlpkg.Resolver, validator auth.Sessio
 	srv.SetErrorPresenter(errorPresenter(logger))
 
 	var graphqlHandler http.Handler = srv
-	graphqlHandler = clientIPMiddleware(graphqlHandler)
+	graphqlHandler = clientIPMiddleware(cfg.TrustedProxies)(graphqlHandler)
 	graphqlHandler = auth.Middleware(validator, cfg.SessionCookieName)(graphqlHandler)
 	graphqlHandler = rateLimitSignalMiddleware(graphqlHandler)
 	graphqlHandler = limits.BodyLimitMiddleware(cfg.GraphQLBodyLimitBytes)(graphqlHandler)
